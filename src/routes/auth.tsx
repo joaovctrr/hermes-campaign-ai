@@ -76,7 +76,7 @@ function AuthPage() {
     <div className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
         <a href="/" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-sm bg-gold text-gold-foreground font-serif">H</div>
+          <img src={logo.url} alt="Informa Ágora" className="h-9 w-9 rounded-sm bg-white object-contain p-0.5" />
           <span className="font-serif text-xl">Informa Ágora</span>
         </a>
         <div>
