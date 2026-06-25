@@ -183,6 +183,80 @@ function SettingsPage() {
             </div>
           </Section>
 
+          <Section
+            title="Redes sociais monitoradas"
+            subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
+          >
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Instagram (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.instagram_handle}
+                  onChange={(e) => setForm({ ...form, instagram_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="Twitter / X (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.twitter_handle}
+                  onChange={(e) => setForm({ ...form, twitter_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="TikTok (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.tiktok_handle}
+                  onChange={(e) => setForm({ ...form, tiktok_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="Facebook (usuário ou página)">
+                <Input
+                  placeholder="ex: candidato.oficial"
+                  value={form.facebook_handle}
+                  onChange={(e) => setForm({ ...form, facebook_handle: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="pt-2">
+              <Label>Palavras-chave de menção (Twitter/X)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Termos extras para detectar menções mesmo sem @ ao seu handle.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ex: Nome Sobrenome"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addKeyword();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addKeyword}>Adicionar</Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {form.mention_keywords.map((t) => (
+                  <Badge key={t} variant="secondary" className="gap-1 pl-3">
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm({ ...form, mention_keywords: form.mention_keywords.filter((x) => x !== t) })
+                      }
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+
+
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</Button>
           </div>
