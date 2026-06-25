@@ -24,23 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { createHash } from "crypto-browserify";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-// Lightweight client hash matching server's recommendation_hash logic (sha256 first 32 chars)
-function hashRec(text: string): string {
-  try {
-    return createHash("sha256").update(text.trim().toLowerCase()).digest("hex").slice(0, 32);
-  } catch {
-    // Fallback to a simple hash if crypto-browserify unavailable
-    let h = 0;
-    const s = text.trim().toLowerCase();
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return `f${Math.abs(h).toString(16)}`;
-  }
+function normalize(text: string): string {
+  return text.trim().toLowerCase();
 }
 
 function DashboardPage() {
@@ -84,7 +74,7 @@ function DashboardPage() {
 
   const feedbackMap = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const f of feedback) map.set(f.recommendation_hash, f.useful);
+    for (const f of feedback) map.set(normalize(f.recommendation_text), f.useful);
     return map;
   }, [feedback]);
 

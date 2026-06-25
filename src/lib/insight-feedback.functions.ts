@@ -39,7 +39,7 @@ export const listMyFeedback = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("insight_feedback")
-      .select("recommendation_hash, useful, created_at")
+      .select("recommendation_text, recommendation_hash, useful, created_at")
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(200);
