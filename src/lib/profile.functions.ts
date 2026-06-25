@@ -21,6 +21,8 @@ const HandleSchema = z
   .optional()
   .nullable();
 
+const NetworkEnum = z.enum(["instagram", "twitter", "tiktok", "facebook"]);
+
 const UpdateSchema = z.object({
   full_name: z.string().min(1).max(120),
   political_role: z.string().max(160).optional().nullable(),
@@ -33,6 +35,8 @@ const UpdateSchema = z.object({
   tiktok_handle: HandleSchema,
   facebook_handle: HandleSchema,
   mention_keywords: z.array(z.string().min(1).max(80)).max(20).default([]),
+  monitored_networks: z.array(NetworkEnum).max(4).default(["instagram", "twitter", "tiktok", "facebook"]),
+  cron_interval_hours: z.union([z.literal(6), z.literal(12), z.literal(24)]).default(6),
   onboarded: z.boolean().optional(),
 });
 
