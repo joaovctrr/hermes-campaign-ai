@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Newspaper, Brain, Megaphone, ShieldAlert, Clock, Sparkles } from "lucide-react";
+import logo from "@/assets/informa-agora-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
