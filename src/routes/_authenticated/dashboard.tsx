@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import { getMyProfile } from "@/lib/profile.functions";
-import { listMyNews } from "@/lib/news.functions";
+import { listMyNews, getMyDashboardStats } from "@/lib/news.functions";
 import { AppShell } from "@/components/app-shell";
-import { ShieldAlert, TrendingUp, Radio } from "lucide-react";
+import { ShieldAlert, TrendingUp, Radio, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -16,27 +16,39 @@ function DashboardPage() {
   const navigate = useNavigate();
   const getProfile = useServerFn(getMyProfile);
   const getNews = useServerFn(listMyNews);
+  const getStats = useServerFn(getMyDashboardStats);
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => getProfile() });
   const { data: news = [] } = useQuery({ queryKey: ["news"], queryFn: () => getNews() });
+  const { data: stats } = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => getStats() });
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/settings" });
   }, [profile, navigate]);
 
   const critical = news.filter((n) => n.urgency === "alta");
-  const last24h = news.filter((n) => new Date(n.created_at).getTime() > Date.now() - 86400000);
 
-  // Top temas
   const themeMap = new Map<string, number>();
-  last24h.forEach((n) => n.theme && themeMap.set(n.theme, (themeMap.get(n.theme) ?? 0) + 1));
+  news
+    .filter((n) => new Date(n.created_at).getTime() > Date.now() - 86400000)
+    .forEach((n) => n.theme && themeMap.set(n.theme, (themeMap.get(n.theme) ?? 0) + 1));
   const topThemes = [...themeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const lastNewsAt = stats?.last_news_at ? new Date(stats.last_news_at) : null;
 
   return (
     <AppShell
       title={`Bom dia${profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}.`}
       subtitle="Panorama estratégico das últimas 24 horas no seu radar."
     >
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+        <Clock className="h-3.5 w-3.5" />
+        <span>
+          Radar atualizado automaticamente a cada 3h.
+          {lastNewsAt && ` Última coleta: ${lastNewsAt.toLocaleString("pt-BR")}.`}
+        </span>
+      </div>
+
       {critical.length > 0 && (
         <div className="mb-6 rounded-xl border border-destructive/50 bg-destructive/5 p-5 flex items-start gap-4">
           <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
@@ -59,9 +71,9 @@ function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card title="Notícias nas últimas 24h" icon={Radio}>
-          <div className="font-serif text-5xl">{last24h.length}</div>
+          <div className="font-serif text-5xl">{stats?.last_24h ?? 0}</div>
           <p className="text-sm text-muted-foreground mt-2">
-            {news.length} no total armazenadas no seu radar.
+            {stats?.total ?? 0} no total armazenadas no seu radar.
           </p>
           <Link to="/radar" className="mt-4 inline-block">
             <Button variant="outline" size="sm">Abrir radar</Button>
@@ -85,10 +97,10 @@ function DashboardPage() {
           )}
         </Card>
 
-        <Card title="Termômetro de aprovação" icon={ShieldAlert}>
-          <div className="font-serif text-2xl text-muted-foreground">Em breve</div>
+        <Card title="Avisos críticos (24h)" icon={ShieldAlert}>
+          <div className="font-serif text-5xl text-destructive">{stats?.critical_24h ?? 0}</div>
           <p className="text-sm text-muted-foreground mt-2">
-            Conecte o Instagram nas Configurações (plano Avançado) para liberar a análise de sentimento.
+            Pautas que exigem posicionamento imediato.
           </p>
         </Card>
       </div>

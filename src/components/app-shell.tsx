@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { LayoutDashboard, Newspaper, Sparkles, BarChart3, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, Settings, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/dashboard", label: "Centro de Comando", icon: LayoutDashboard },
   { to: "/radar", label: "Radar de Notícias", icon: Newspaper },
   { to: "/studio", label: "Estúdio de Criação", icon: Sparkles },
+  { to: "/library", label: "Biblioteca", icon: Library },
   { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;

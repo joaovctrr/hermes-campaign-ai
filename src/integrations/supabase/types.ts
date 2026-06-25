@@ -132,10 +132,28 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      dashboard_stats: {
+        Row: {
+          critical_24h: number | null
+          last_24h: number | null
+          last_news_at: string | null
+          total: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_my_dashboard_stats: {
+        Args: never
+        Returns: {
+          critical_24h: number
+          last_24h: number
+          last_news_at: string
+          total: number
+        }[]
+      }
+      refresh_dashboard_stats: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
