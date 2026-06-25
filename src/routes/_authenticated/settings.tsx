@@ -215,6 +215,74 @@ function SettingsPage() {
           </Section>
 
           <Section
+            title="Coleta automática"
+            subtitle="Escolha quais redes entram no Termômetro Social e a frequência do cron."
+          >
+            <div>
+              <Label>Redes monitoradas</Label>
+              <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                {(["instagram", "twitter", "tiktok", "facebook"] as const).map((n) => {
+                  const checked = form.monitored_networks.includes(n);
+                  const labels: Record<typeof n, string> = {
+                    instagram: "Instagram",
+                    twitter: "Twitter / X",
+                    tiktok: "TikTok",
+                    facebook: "Facebook",
+                  };
+                  return (
+                    <label
+                      key={n}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition ${
+                        checked ? "border-gold bg-gold/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleNetwork(n)}
+                        className="h-4 w-4 accent-gold"
+                      />
+                      <span className="text-sm">{labels[n]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Desmarque para economizar créditos da Apify.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <Label>Intervalo de atualização automática</Label>
+              <div className="grid sm:grid-cols-3 gap-2 mt-2">
+                {intervalOptions.map((opt) => {
+                  const active = form.cron_interval_hours === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={opt.disabled}
+                      onClick={() => setForm({ ...form, cron_interval_hours: opt.value })}
+                      className={`rounded-lg border px-3 py-2 text-sm transition ${
+                        active
+                          ? "border-gold bg-gold/5"
+                          : opt.disabled
+                            ? "border-border opacity-40 cursor-not-allowed"
+                            : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Seu plano <span className="font-medium capitalize">{plan}</span> permite no mínimo a cada {minInterval}h.
+                {plan !== "enterprise" && " Faça upgrade para atualizações mais frequentes."}
+              </p>
+            </div>
+          </Section>
+
             title="Redes sociais monitoradas"
             subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
           >
