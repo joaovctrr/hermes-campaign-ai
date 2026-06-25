@@ -34,7 +34,7 @@ export function AppShell({ children, title, subtitle, actions }: {
         <div className="p-6 border-b border-sidebar-border/40">
           <Link to="/dashboard" className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-sm bg-gold text-gold-foreground font-serif">H</div>
-            <span className="font-serif text-xl">Hermes</span>
+            <span className="font-serif text-xl">Informa Ágora</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">

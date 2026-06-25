@@ -11,8 +11,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Entrar · Hermes" },
-      { name: "description", content: "Acesse seu painel Hermes." },
+      { title: "Entrar · Informa Ágora" },
+      { name: "description", content: "Acesse seu painel Informa Ágora." },
     ],
   }),
   component: AuthPage,
@@ -77,15 +77,15 @@ function AuthPage() {
       <aside className="hidden md:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
         <a href="/" className="flex items-center gap-2">
           <div className="grid h-8 w-8 place-items-center rounded-sm bg-gold text-gold-foreground font-serif">H</div>
-          <span className="font-serif text-xl">Hermes</span>
+          <span className="font-serif text-xl">Informa Ágora</span>
         </a>
         <div>
           <p className="font-serif text-3xl leading-snug max-w-md">
             "Quem domina a primeira hora do debate, dita a manchete da semana."
           </p>
-          <p className="mt-6 text-sm text-sidebar-foreground/70">Manual interno · Hermes</p>
+          <p className="mt-6 text-sm text-sidebar-foreground/70">Manual interno · Informa Ágora</p>
         </div>
-        <div className="text-xs text-sidebar-foreground/60">© Hermes Inteligência Política</div>
+        <div className="text-xs text-sidebar-foreground/60">© Informa Ágora Inteligência Política</div>
       </aside>
 
       <main className="flex items-center justify-center p-8">

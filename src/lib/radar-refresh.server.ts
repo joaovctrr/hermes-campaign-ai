@@ -30,7 +30,7 @@ export async function refreshRadarForUser(
     const query = encodeURIComponent(`${theme} ${profile?.region ?? "Brasil"}`);
     const url = `https://news.google.com/rss/search?q=${query}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
     try {
-      const res = await fetch(url, { headers: { "User-Agent": "HermesBot/1.0" } });
+      const res = await fetch(url, { headers: { "User-Agent": "InformaAgoraBot/1.0" } });
       if (!res.ok) continue;
       const xml = await res.text();
       const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 4);
@@ -65,7 +65,7 @@ export async function refreshRadarForUser(
   const gateway = createLovableAiGatewayProvider(apiKey);
   const model = gateway("google/gemini-3-flash-preview");
 
-  const prompt = `Você é Hermes, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta"}.
+  const prompt = `Você é Informa Ágora, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta"}.
 
 Critério ALTA: crise, escândalo, denúncia, tragédia ou pauta de segurança/saúde com impacto direto na região "${profile?.region ?? "Brasil"}" e perfil "${profile?.political_role ?? "político"}".
 MEDIA: tema relevante sem crise.
