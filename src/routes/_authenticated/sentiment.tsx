@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { RefreshCw, ExternalLink, Instagram, Twitter, Facebook, Music2, Lock, MessageSquare } from "lucide-react";
 import {
@@ -36,6 +37,15 @@ function SentimentPage() {
   const cooldownFn = useServerFn(getManualCooldownStatus);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"todas" | "positivo" | "neutro" | "negativo">("todas");
+  const [network, setNetwork] = useState<"todas" | "instagram" | "twitter" | "tiktok" | "facebook">("todas");
+  const [postModal, setPostModal] = useState<null | {
+    network: string;
+    url?: string | null;
+    caption?: string | null;
+    thumbnail?: string | null;
+    posted_at?: string | null;
+    author?: string | null;
+  }>(null);
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
   const { data: snap, refetch: refetchSnap } = useQuery({
@@ -43,8 +53,14 @@ function SentimentPage() {
     queryFn: () => snapshotFn(),
   });
   const { data: mentions, refetch: refetchMentions } = useQuery({
-    queryKey: ["mentions", tab],
-    queryFn: () => mentionsFn({ data: tab === "todas" ? {} : { sentiment: tab } }),
+    queryKey: ["mentions", tab, network],
+    queryFn: () =>
+      mentionsFn({
+        data: {
+          ...(tab === "todas" ? {} : { sentiment: tab }),
+          ...(network === "todas" ? {} : { network }),
+        },
+      }),
   });
   const { data: cd, refetch: refetchCd } = useQuery({
     queryKey: ["cooldown-sentiment"],
@@ -142,16 +158,40 @@ function SentimentPage() {
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             {Object.entries((snap?.networks as Record<string, { total: number; pos: number; neg: number; neu: number }>) ?? {}).map(
-              ([net, c]) => (
-                <div key={net} className="rounded-md border border-border p-3">
-                  <div className="font-medium capitalize">{net}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
-                  </div>
-                </div>
-              ),
+              ([net, c]) => {
+                const active = network === net;
+                return (
+                  <button
+                    type="button"
+                    key={net}
+                    onClick={() => setNetwork(active ? "todas" : (net as typeof network))}
+                    className={`text-left rounded-md border p-3 transition ${
+                      active
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="font-medium capitalize flex items-center justify-between">
+                      {net}
+                      {active && <span className="text-[10px] uppercase tracking-wider text-primary">filtrando</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
+                    </div>
+                  </button>
+                );
+              },
             )}
           </div>
+          {network !== "todas" && (
+            <button
+              type="button"
+              onClick={() => setNetwork("todas")}
+              className="mt-3 text-xs text-primary hover:underline"
+            >
+              Limpar filtro de rede
+            </button>
+          )}
         </div>
       )}
 
@@ -189,11 +229,19 @@ function SentimentPage() {
                   </div>
 
                   {m.parent_post_url && (
-                    <a
-                      href={m.parent_post_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 flex gap-3 rounded-md border border-border bg-muted/30 p-2.5 hover:bg-muted/60 transition"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPostModal({
+                          network: m.network,
+                          url: m.parent_post_url,
+                          caption: m.parent_post_caption,
+                          thumbnail: m.parent_post_thumbnail,
+                          posted_at: m.posted_at,
+                          author: m.author,
+                        })
+                      }
+                      className="mt-3 flex w-full gap-3 rounded-md border border-border bg-muted/30 p-2.5 text-left hover:bg-muted/60 transition"
                     >
                       {m.parent_post_thumbnail && (
                         <img
@@ -206,7 +254,7 @@ function SentimentPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
                           <MessageSquare className="h-3 w-3" />
-                          Em resposta a
+                          Em resposta a · clique para ver
                         </div>
                         {m.parent_post_caption && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
@@ -214,7 +262,7 @@ function SentimentPage() {
                           </p>
                         )}
                       </div>
-                    </a>
+                    </button>
                   )}
 
                   <p className="mt-3 text-sm leading-relaxed">{m.content}</p>
@@ -240,6 +288,42 @@ function SentimentPage() {
           Última coleta: {new Date(snap.created_at).toLocaleString("pt-BR")} · Cron a cada 6h.
         </p>
       )}
+
+      <Dialog open={!!postModal} onOpenChange={(o) => !o && setPostModal(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif capitalize">
+              Post original · {postModal?.network}
+            </DialogTitle>
+            <DialogDescription>
+              {postModal?.author && <>@{postModal.author} · </>}
+              {postModal?.posted_at && new Date(postModal.posted_at).toLocaleString("pt-BR")}
+            </DialogDescription>
+          </DialogHeader>
+          {postModal?.thumbnail && (
+            <img
+              src={postModal.thumbnail}
+              alt=""
+              className="w-full max-h-80 object-cover rounded-md border border-border"
+            />
+          )}
+          {postModal?.caption ? (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{postModal.caption}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Sem legenda capturada.</p>
+          )}
+          {postModal?.url && (
+            <a
+              href={postModal.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              Abrir no {postModal.network} <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
