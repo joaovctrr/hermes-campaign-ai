@@ -24,20 +24,23 @@ export async function refreshSentimentForUser(
 ): Promise<{ collected: number; inserted: number; snapshot_id?: string; reason?: string }> {
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
-    .select("instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords")
+    .select("instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks")
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
   if (!profile) return { collected: 0, inserted: 0, reason: "no_profile" };
 
-  const tasks: Array<Promise<RawMention[]>> = [];
-  if (profile.instagram_handle) tasks.push(fetchInstagramMentions(profile.instagram_handle, apifyToken));
-  if (profile.twitter_handle || (profile.mention_keywords?.length ?? 0))
-    tasks.push(fetchTwitterMentions(profile.twitter_handle ?? null, profile.mention_keywords ?? [], apifyToken));
-  if (profile.tiktok_handle) tasks.push(fetchTiktokMentions(profile.tiktok_handle, apifyToken));
-  if (profile.facebook_handle) tasks.push(fetchFacebookMentions(profile.facebook_handle, apifyToken));
+  const nets: string[] = profile.monitored_networks ?? ["instagram", "twitter", "tiktok", "facebook"];
+  const on = (n: string) => nets.includes(n);
 
-  if (!tasks.length) return { collected: 0, inserted: 0, reason: "no_handles" };
+  const tasks: Array<Promise<RawMention[]>> = [];
+  if (on("instagram") && profile.instagram_handle) tasks.push(fetchInstagramMentions(profile.instagram_handle, apifyToken));
+  if (on("twitter") && (profile.twitter_handle || (profile.mention_keywords?.length ?? 0)))
+    tasks.push(fetchTwitterMentions(profile.twitter_handle ?? null, profile.mention_keywords ?? [], apifyToken));
+  if (on("tiktok") && profile.tiktok_handle) tasks.push(fetchTiktokMentions(profile.tiktok_handle, apifyToken));
+  if (on("facebook") && profile.facebook_handle) tasks.push(fetchFacebookMentions(profile.facebook_handle, apifyToken));
+
+  if (!tasks.length) return { collected: 0, inserted: 0, reason: "no_networks_selected" };
 
   const results = await Promise.allSettled(tasks);
   const all: RawMention[] = [];
