@@ -121,6 +121,8 @@ function SettingsPage() {
           tiktok_handle: form.tiktok_handle || null,
           facebook_handle: form.facebook_handle || null,
           mention_keywords: form.mention_keywords,
+          monitored_networks: form.monitored_networks,
+          cron_interval_hours: Math.max(form.cron_interval_hours, minInterval) as 6 | 12 | 24,
           onboarded: true,
         },
       });
