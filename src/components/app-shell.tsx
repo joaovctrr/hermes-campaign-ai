@@ -1,6 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, ScrollText, Settings, LogOut } from "lucide-react";
+import logo from "@/assets/informa-agora-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
