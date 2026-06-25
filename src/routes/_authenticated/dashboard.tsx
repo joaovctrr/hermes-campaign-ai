@@ -4,8 +4,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import { getMyProfile } from "@/lib/profile.functions";
 import { listMyNews, getMyDashboardStats } from "@/lib/news.functions";
+import { getMyInsights } from "@/lib/insights.functions";
 import { AppShell } from "@/components/app-shell";
-import { ShieldAlert, TrendingUp, Radio, Clock } from "lucide-react";
+import {
+  ShieldAlert,
+  TrendingUp,
+  Radio,
+  Clock,
+  Activity,
+  Lightbulb,
+  ArrowDown,
+  ArrowUp,
+  Minus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -17,10 +28,16 @@ function DashboardPage() {
   const getProfile = useServerFn(getMyProfile);
   const getNews = useServerFn(listMyNews);
   const getStats = useServerFn(getMyDashboardStats);
+  const getInsights = useServerFn(getMyInsights);
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => getProfile() });
   const { data: news = [] } = useQuery({ queryKey: ["news"], queryFn: () => getNews() });
   const { data: stats } = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => getStats() });
+  const { data: insights, isLoading: insightsLoading } = useQuery({
+    queryKey: ["insights"],
+    queryFn: () => getInsights(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (profile && !profile.onboarded) navigate({ to: "/settings" });
@@ -104,7 +121,149 @@ function DashboardPage() {
           </p>
         </Card>
       </div>
+
+      <section className="mt-8 rounded-xl border border-border bg-card p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+              <Activity className="h-3.5 w-3.5 text-gold" />
+              Insights automáticos
+            </div>
+            <h2 className="font-serif text-2xl mt-1">Tendência de sentimento e recomendações</h2>
+          </div>
+          <TrendBadge trend={insights?.trend} />
+        </div>
+
+        {insightsLoading ? (
+          <p className="text-sm text-muted-foreground">Calculando insights...</p>
+        ) : !insights || insights.bucket7.total === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Sem menções suficientes ainda. Configure suas redes em{" "}
+            <Link to="/settings" className="underline">Configurações</Link> e atualize o{" "}
+            <Link to="/sentiment" className="underline">Termômetro</Link>.
+          </p>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div>
+              <h3 className="text-sm font-medium mb-3">Sentimento — últimas 24h</h3>
+              <SentimentBars bucket={insights.bucket24} />
+              <h3 className="text-sm font-medium mt-6 mb-3">Sentimento — últimos 7 dias</h3>
+              <SentimentBars bucket={insights.bucket7} />
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium mb-3">Série diária (7d)</h3>
+              <MiniSeries series={insights.series} />
+              <div className="mt-4">
+                <h3 className="text-sm font-medium mb-2">Principais temas (7d)</h3>
+                {insights.topThemes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sem temas detectados.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {insights.topThemes.map((t) => (
+                      <li key={t.theme} className="flex justify-between text-sm">
+                        <span>{t.theme}</span>
+                        <span className="text-muted-foreground tabular-nums">{t.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-gold" />
+                Recomendações para 48h
+              </h3>
+              {insights.recommendations.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Sem recomendações da IA neste ciclo. Tente novamente após a próxima coleta.
+                </p>
+              ) : (
+                <ol className="space-y-3">
+                  {insights.recommendations.map((r, i) => (
+                    <li key={i} className="text-sm leading-relaxed flex gap-3">
+                      <span className="font-serif text-gold tabular-nums">{i + 1}.</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
     </AppShell>
+  );
+}
+
+function TrendBadge({ trend }: { trend?: "piorando" | "estavel" | "melhorando" }) {
+  if (!trend) return null;
+  const map = {
+    piorando: { label: "Piorando", Icon: ArrowDown, cls: "text-destructive border-destructive/40 bg-destructive/5" },
+    melhorando: { label: "Melhorando", Icon: ArrowUp, cls: "text-emerald-600 border-emerald-600/40 bg-emerald-600/5" },
+    estavel: { label: "Estável", Icon: Minus, cls: "text-muted-foreground border-border bg-muted/40" },
+  } as const;
+  const { label, Icon, cls } = map[trend];
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${cls}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
+}
+
+function SentimentBars({ bucket }: { bucket: { positivo: number; neutro: number; negativo: number; total: number } }) {
+  const { positivo, neutro, negativo, total } = bucket;
+  if (!total) return <p className="text-xs text-muted-foreground">Sem dados.</p>;
+  const pct = (n: number) => Math.round((n / total) * 100);
+  return (
+    <div className="space-y-2">
+      <Bar label="Positivo" value={positivo} pct={pct(positivo)} color="bg-emerald-500" />
+      <Bar label="Neutro" value={neutro} pct={pct(neutro)} color="bg-muted-foreground/50" />
+      <Bar label="Negativo" value={negativo} pct={pct(negativo)} color="bg-destructive" />
+    </div>
+  );
+}
+
+function Bar({ label, value, pct, color }: { label: string; value: number; pct: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span>{label}</span>
+        <span className="text-muted-foreground tabular-nums">{value} ({pct}%)</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MiniSeries({ series }: { series: Array<{ day: string; positivo: number; neutro: number; negativo: number }> }) {
+  const max = Math.max(
+    1,
+    ...series.map((s) => s.positivo + s.neutro + s.negativo),
+  );
+  return (
+    <div className="flex items-end gap-1 h-24">
+      {series.map((s) => {
+        const total = s.positivo + s.neutro + s.negativo;
+        const h = (total / max) * 100;
+        const dayLabel = new Date(s.day).toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3);
+        return (
+          <div key={s.day} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full flex flex-col-reverse rounded-sm overflow-hidden bg-muted" style={{ height: `${Math.max(h, 4)}%`, minHeight: 4 }}>
+              {s.positivo > 0 && <div className="bg-emerald-500" style={{ height: `${(s.positivo / Math.max(total, 1)) * 100}%` }} />}
+              {s.neutro > 0 && <div className="bg-muted-foreground/40" style={{ height: `${(s.neutro / Math.max(total, 1)) * 100}%` }} />}
+              {s.negativo > 0 && <div className="bg-destructive" style={{ height: `${(s.negativo / Math.max(total, 1)) * 100}%` }} />}
+            </div>
+            <span className="text-[10px] text-muted-foreground">{dayLabel}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
