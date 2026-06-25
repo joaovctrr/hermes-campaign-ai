@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createHash } from "crypto";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SaveSchema = z.object({
@@ -9,15 +8,20 @@ const SaveSchema = z.object({
   useful: z.boolean(),
 });
 
-export function hashRecommendation(text: string): string {
-  return createHash("sha256").update(text.trim().toLowerCase()).digest("hex").slice(0, 32);
+async function hashRecommendation(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text.trim().toLowerCase());
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 32);
 }
 
 export const saveInsightFeedback = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => SaveSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const hash = hashRecommendation(data.text);
+    const hash = await hashRecommendation(data.text);
     const { error } = await context.supabase
       .from("insight_feedback")
       .upsert(
