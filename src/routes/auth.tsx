@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import logo from "@/assets/informa-agora-logo.png.asset.json";
+import logo from "@/assets/informa-agora-logo-transparent.png.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -77,7 +77,7 @@ function AuthPage() {
     <div className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
         <a href="/" className="flex items-center gap-2">
-          <img src={logo.url} alt="Informa Ágora" className="h-9 w-9 rounded-sm bg-white object-contain p-0.5" />
+          <img src={logo.url} alt="Informa Ágora" className="h-10 w-auto object-contain" />
           <span className="font-serif text-xl">Informa Ágora</span>
         </a>
         <div>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Newspaper, Brain, Megaphone, ShieldAlert, Clock, Sparkles } from "lucide-react";
-import logo from "@/assets/informa-agora-logo.png.asset.json";
+import logo from "@/assets/informa-agora-logo-transparent.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,7 +36,7 @@ function Nav() {
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container-prose flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <img src={logo.url} alt="Informa Ágora" className="h-9 w-9 object-contain" />
+          <img src={logo.url} alt="Informa Ágora" className="h-10 w-auto object-contain" />
           <span className="font-serif text-xl tracking-tight">Informa Ágora</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
