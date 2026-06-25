@@ -35,9 +35,7 @@ function Nav() {
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container-prose flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-sm bg-primary text-primary-foreground font-serif text-lg">
-            H
-          </div>
+          <img src={logo.url} alt="Informa Ágora" className="h-9 w-9 object-contain" />
           <span className="font-serif text-xl tracking-tight">Informa Ágora</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
