@@ -37,10 +37,22 @@ function SettingsPage() {
     tiktok_handle: "",
     facebook_handle: "",
     mention_keywords: [] as string[],
+    monitored_networks: ["instagram", "twitter", "tiktok", "facebook"] as Array<
+      "instagram" | "twitter" | "tiktok" | "facebook"
+    >,
+    cron_interval_hours: 6 as 6 | 12 | 24,
   });
   const [themeInput, setThemeInput] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const plan = (profile?.plan ?? "basico") as "basico" | "avancado" | "enterprise";
+  const minInterval = plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
+  const intervalOptions: Array<{ value: 6 | 12 | 24; label: string; disabled: boolean }> = [
+    { value: 6, label: "A cada 6h", disabled: minInterval > 6 },
+    { value: 12, label: "A cada 12h", disabled: minInterval > 12 },
+    { value: 24, label: "A cada 24h", disabled: false },
+  ];
 
   useEffect(() => {
     if (profile) {
@@ -56,9 +68,26 @@ function SettingsPage() {
         tiktok_handle: profile.tiktok_handle ?? "",
         facebook_handle: profile.facebook_handle ?? "",
         mention_keywords: profile.mention_keywords ?? [],
+        monitored_networks: (profile.monitored_networks ?? [
+          "instagram",
+          "twitter",
+          "tiktok",
+          "facebook",
+        ]) as Array<"instagram" | "twitter" | "tiktok" | "facebook">,
+        cron_interval_hours: (profile.cron_interval_hours ?? 6) as 6 | 12 | 24,
       });
     }
   }, [profile]);
+
+  function toggleNetwork(n: "instagram" | "twitter" | "tiktok" | "facebook") {
+    setForm((f) => ({
+      ...f,
+      monitored_networks: f.monitored_networks.includes(n)
+        ? f.monitored_networks.filter((x) => x !== n)
+        : [...f.monitored_networks, n],
+    }));
+  }
+
 
   function addTheme() {
     const t = themeInput.trim();
