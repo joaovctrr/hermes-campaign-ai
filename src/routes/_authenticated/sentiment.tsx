@@ -158,16 +158,40 @@ function SentimentPage() {
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             {Object.entries((snap?.networks as Record<string, { total: number; pos: number; neg: number; neu: number }>) ?? {}).map(
-              ([net, c]) => (
-                <div key={net} className="rounded-md border border-border p-3">
-                  <div className="font-medium capitalize">{net}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
-                  </div>
-                </div>
-              ),
+              ([net, c]) => {
+                const active = network === net;
+                return (
+                  <button
+                    type="button"
+                    key={net}
+                    onClick={() => setNetwork(active ? "todas" : (net as typeof network))}
+                    className={`text-left rounded-md border p-3 transition ${
+                      active
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="font-medium capitalize flex items-center justify-between">
+                      {net}
+                      {active && <span className="text-[10px] uppercase tracking-wider text-primary">filtrando</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
+                    </div>
+                  </button>
+                );
+              },
             )}
           </div>
+          {network !== "todas" && (
+            <button
+              type="button"
+              onClick={() => setNetwork("todas")}
+              className="mt-3 text-xs text-primary hover:underline"
+            >
+              Limpar filtro de rede
+            </button>
+          )}
         </div>
       )}
 
