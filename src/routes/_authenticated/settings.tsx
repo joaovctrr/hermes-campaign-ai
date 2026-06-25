@@ -37,10 +37,22 @@ function SettingsPage() {
     tiktok_handle: "",
     facebook_handle: "",
     mention_keywords: [] as string[],
+    monitored_networks: ["instagram", "twitter", "tiktok", "facebook"] as Array<
+      "instagram" | "twitter" | "tiktok" | "facebook"
+    >,
+    cron_interval_hours: 6 as 6 | 12 | 24,
   });
   const [themeInput, setThemeInput] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const plan = (profile?.plan ?? "basico") as "basico" | "avancado" | "enterprise";
+  const minInterval = plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
+  const intervalOptions: Array<{ value: 6 | 12 | 24; label: string; disabled: boolean }> = [
+    { value: 6, label: "A cada 6h", disabled: minInterval > 6 },
+    { value: 12, label: "A cada 12h", disabled: minInterval > 12 },
+    { value: 24, label: "A cada 24h", disabled: false },
+  ];
 
   useEffect(() => {
     if (profile) {
@@ -56,9 +68,26 @@ function SettingsPage() {
         tiktok_handle: profile.tiktok_handle ?? "",
         facebook_handle: profile.facebook_handle ?? "",
         mention_keywords: profile.mention_keywords ?? [],
+        monitored_networks: (profile.monitored_networks ?? [
+          "instagram",
+          "twitter",
+          "tiktok",
+          "facebook",
+        ]) as Array<"instagram" | "twitter" | "tiktok" | "facebook">,
+        cron_interval_hours: (profile.cron_interval_hours ?? 6) as 6 | 12 | 24,
       });
     }
   }, [profile]);
+
+  function toggleNetwork(n: "instagram" | "twitter" | "tiktok" | "facebook") {
+    setForm((f) => ({
+      ...f,
+      monitored_networks: f.monitored_networks.includes(n)
+        ? f.monitored_networks.filter((x) => x !== n)
+        : [...f.monitored_networks, n],
+    }));
+  }
+
 
   function addTheme() {
     const t = themeInput.trim();
@@ -92,6 +121,8 @@ function SettingsPage() {
           tiktok_handle: form.tiktok_handle || null,
           facebook_handle: form.facebook_handle || null,
           mention_keywords: form.mention_keywords,
+          monitored_networks: form.monitored_networks,
+          cron_interval_hours: Math.max(form.cron_interval_hours, minInterval) as 6 | 12 | 24,
           onboarded: true,
         },
       });
@@ -184,9 +215,79 @@ function SettingsPage() {
           </Section>
 
           <Section
+            title="Coleta automática"
+            subtitle="Escolha quais redes entram no Termômetro Social e a frequência do cron."
+          >
+            <div>
+              <Label>Redes monitoradas</Label>
+              <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                {(["instagram", "twitter", "tiktok", "facebook"] as const).map((n) => {
+                  const checked = form.monitored_networks.includes(n);
+                  const labels: Record<typeof n, string> = {
+                    instagram: "Instagram",
+                    twitter: "Twitter / X",
+                    tiktok: "TikTok",
+                    facebook: "Facebook",
+                  };
+                  return (
+                    <label
+                      key={n}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition ${
+                        checked ? "border-gold bg-gold/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleNetwork(n)}
+                        className="h-4 w-4 accent-gold"
+                      />
+                      <span className="text-sm">{labels[n]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Desmarque para economizar créditos da Apify.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <Label>Intervalo de atualização automática</Label>
+              <div className="grid sm:grid-cols-3 gap-2 mt-2">
+                {intervalOptions.map((opt) => {
+                  const active = form.cron_interval_hours === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={opt.disabled}
+                      onClick={() => setForm({ ...form, cron_interval_hours: opt.value })}
+                      className={`rounded-lg border px-3 py-2 text-sm transition ${
+                        active
+                          ? "border-gold bg-gold/5"
+                          : opt.disabled
+                            ? "border-border opacity-40 cursor-not-allowed"
+                            : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Seu plano <span className="font-medium capitalize">{plan}</span> permite no mínimo a cada {minInterval}h.
+                {plan !== "enterprise" && " Faça upgrade para atualizações mais frequentes."}
+              </p>
+            </div>
+          </Section>
+
+          <Section
             title="Redes sociais monitoradas"
             subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
           >
+
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="Instagram (sem @)">
                 <Input
