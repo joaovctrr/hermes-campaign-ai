@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      cron_run_logs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          hook: string
+          id: string
+          started_at: string
+          status: string
+          users_processed: number
+          users_skipped: number
+          users_total: number
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          hook: string
+          id?: string
+          started_at?: string
+          status?: string
+          users_processed?: number
+          users_skipped?: number
+          users_total?: number
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          hook?: string
+          id?: string
+          started_at?: string
+          status?: string
+          users_processed?: number
+          users_skipped?: number
+          users_total?: number
+        }
+        Relationships: []
+      }
+      cron_user_logs: {
+        Row: {
+          action: string
+          created_at: string
+          error: string | null
+          hook: string
+          id: string
+          inserted_count: number | null
+          interval_hours: number | null
+          plan: string | null
+          reason: string | null
+          run_id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          error?: string | null
+          hook: string
+          id?: string
+          inserted_count?: number | null
+          interval_hours?: number | null
+          plan?: string | null
+          reason?: string | null
+          run_id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          error?: string | null
+          hook?: string
+          id?: string
+          inserted_count?: number | null
+          interval_hours?: number | null
+          plan?: string | null
+          reason?: string | null
+          run_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cron_user_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "cron_run_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_posts: {
         Row: {
           content: string
@@ -48,6 +134,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      insight_feedback: {
+        Row: {
+          context_window: string
+          created_at: string
+          id: string
+          recommendation_hash: string
+          recommendation_text: string
+          useful: boolean
+          user_id: string
+        }
+        Insert: {
+          context_window: string
+          created_at?: string
+          id?: string
+          recommendation_hash: string
+          recommendation_text: string
+          useful: boolean
+          user_id: string
+        }
+        Update: {
+          context_window?: string
+          created_at?: string
+          id?: string
+          recommendation_hash?: string
+          recommendation_text?: string
+          useful?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      insight_history: {
+        Row: {
+          generated_at: string
+          id: string
+          negativo_pct: number
+          neutro_pct: number
+          positivo_pct: number
+          recommendations: Json
+          refresh_source: string
+          sentiment_trend: string | null
+          top_themes: Json
+          total_mentions: number
+          user_id: string
+          window_kind: string
+        }
+        Insert: {
+          generated_at?: string
+          id?: string
+          negativo_pct?: number
+          neutro_pct?: number
+          positivo_pct?: number
+          recommendations?: Json
+          refresh_source?: string
+          sentiment_trend?: string | null
+          top_themes?: Json
+          total_mentions?: number
+          user_id: string
+          window_kind: string
+        }
+        Update: {
+          generated_at?: string
+          id?: string
+          negativo_pct?: number
+          neutro_pct?: number
+          positivo_pct?: number
+          recommendations?: Json
+          refresh_source?: string
+          sentiment_trend?: string | null
+          top_themes?: Json
+          total_mentions?: number
+          user_id?: string
+          window_kind?: string
+        }
+        Relationships: []
       }
       news_items: {
         Row: {
@@ -202,6 +363,10 @@ export type Database = {
           external_id: string | null
           id: string
           network: string
+          parent_post_caption: string | null
+          parent_post_id: string | null
+          parent_post_thumbnail: string | null
+          parent_post_url: string | null
           posted_at: string | null
           score: number | null
           sentiment: string
@@ -217,6 +382,10 @@ export type Database = {
           external_id?: string | null
           id?: string
           network: string
+          parent_post_caption?: string | null
+          parent_post_id?: string | null
+          parent_post_thumbnail?: string | null
+          parent_post_url?: string | null
           posted_at?: string | null
           score?: number | null
           sentiment?: string
@@ -232,6 +401,10 @@ export type Database = {
           external_id?: string | null
           id?: string
           network?: string
+          parent_post_caption?: string | null
+          parent_post_id?: string | null
+          parent_post_thumbnail?: string | null
+          parent_post_url?: string | null
           posted_at?: string | null
           score?: number | null
           sentiment?: string
@@ -255,6 +428,23 @@ export type Database = {
       }
     }
     Functions: {
+      get_my_cron_history: {
+        Args: { _limit?: number }
+        Returns: {
+          action: string
+          created_at: string
+          error: string
+          hook: string
+          id: string
+          inserted_count: number
+          interval_hours: number
+          plan: string
+          reason: string
+          run_id: string
+          run_started_at: string
+          run_status: string
+        }[]
+      }
       get_my_dashboard_stats: {
         Args: never
         Returns: {
