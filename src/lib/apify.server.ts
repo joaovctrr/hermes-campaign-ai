@@ -11,6 +11,10 @@ export type RawMention = {
   content: string;
   url: string | null;
   posted_at: string | null;
+  parent_post_id: string | null;
+  parent_post_url: string | null;
+  parent_post_caption: string | null;
+  parent_post_thumbnail: string | null;
 };
 
 const APIFY_BASE = "https://api.apify.com/v2";
@@ -47,6 +51,10 @@ function clean(s: unknown): string {
   return typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "";
 }
 
+function truncate(s: string, n: number) {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
 export async function fetchInstagramMentions(handle: string, token: string): Promise<RawMention[]> {
   type Post = {
     id?: string;
@@ -55,6 +63,7 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
     caption?: string;
     timestamp?: string;
     ownerUsername?: string;
+    displayUrl?: string;
     latestComments?: Array<{ id?: string; text?: string; ownerUsername?: string; timestamp?: string }>;
   };
   const items = await runActorSync<Post>(
@@ -71,15 +80,22 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
   const out: RawMention[] = [];
   for (const p of items) {
     const postUrl = p.url ?? (p.shortCode ? `https://www.instagram.com/p/${p.shortCode}/` : null);
+    const postId = p.id ?? p.shortCode ?? null;
     const cap = clean(p.caption);
+    const truncatedCap = cap ? truncate(cap, 240) : null;
+    const thumb = p.displayUrl ?? null;
     if (cap) {
       out.push({
         network: "instagram",
-        external_id: `ig_post_${p.id ?? p.shortCode ?? Math.random()}`,
+        external_id: `ig_post_${postId ?? Math.random()}`,
         author: p.ownerUsername ?? handle,
         content: cap.slice(0, 1200),
         url: postUrl,
         posted_at: p.timestamp ?? null,
+        parent_post_id: postId,
+        parent_post_url: postUrl,
+        parent_post_caption: truncatedCap,
+        parent_post_thumbnail: thumb,
       });
     }
     for (const c of p.latestComments ?? []) {
@@ -92,6 +108,10 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
         content: text.slice(0, 800),
         url: postUrl,
         posted_at: c.timestamp ?? null,
+        parent_post_id: postId,
+        parent_post_url: postUrl,
+        parent_post_caption: truncatedCap,
+        parent_post_thumbnail: thumb,
       });
     }
   }
@@ -110,6 +130,9 @@ export async function fetchTwitterMentions(
     fullText?: string;
     createdAt?: string;
     author?: { userName?: string; name?: string };
+    inReplyToId?: string;
+    inReplyToUrl?: string;
+    quoted_tweet?: { id?: string; url?: string; text?: string };
   };
   const terms: string[] = [];
   if (handle) terms.push(`@${handle.replace(/^@/, "")}`);
@@ -126,6 +149,9 @@ export async function fetchTwitterMentions(
     .map((t): RawMention | null => {
       const content = clean(t.fullText ?? t.text);
       if (!content) return null;
+      const parentId = t.inReplyToId ?? t.quoted_tweet?.id ?? null;
+      const parentUrl = t.inReplyToUrl ?? t.quoted_tweet?.url ?? null;
+      const parentCap = t.quoted_tweet?.text ? truncate(clean(t.quoted_tweet.text), 240) : null;
       return {
         network: "twitter",
         external_id: `tw_${t.id ?? t.url ?? Math.random()}`,
@@ -133,6 +159,10 @@ export async function fetchTwitterMentions(
         content: content.slice(0, 1000),
         url: t.url ?? null,
         posted_at: t.createdAt ?? null,
+        parent_post_id: parentId,
+        parent_post_url: parentUrl,
+        parent_post_caption: parentCap,
+        parent_post_thumbnail: null,
       };
     })
     .filter((x): x is RawMention => x !== null);
@@ -145,6 +175,7 @@ export async function fetchTiktokMentions(handle: string, token: string): Promis
     text?: string;
     createTimeISO?: string;
     authorMeta?: { name?: string };
+    videoMeta?: { coverUrl?: string };
   };
   const items = await runActorSync<Video>(
     "clockworks/tiktok-scraper",
@@ -156,13 +187,19 @@ export async function fetchTiktokMentions(handle: string, token: string): Promis
     .map((v): RawMention | null => {
       const content = clean(v.text);
       if (!content) return null;
+      const url = v.webVideoUrl ?? null;
+      const id = v.id ?? null;
       return {
         network: "tiktok",
-        external_id: `tt_${v.id ?? v.webVideoUrl ?? Math.random()}`,
+        external_id: `tt_${id ?? url ?? Math.random()}`,
         author: v.authorMeta?.name ?? handle,
         content: content.slice(0, 1000),
-        url: v.webVideoUrl ?? null,
+        url,
         posted_at: v.createTimeISO ?? null,
+        parent_post_id: id,
+        parent_post_url: url,
+        parent_post_caption: truncate(content, 240),
+        parent_post_thumbnail: v.videoMeta?.coverUrl ?? null,
       };
     })
     .filter((x): x is RawMention => x !== null);
@@ -175,6 +212,7 @@ export async function fetchFacebookMentions(handle: string, token: string): Prom
     text?: string;
     time?: string;
     user?: { name?: string };
+    thumbnailUrl?: string;
   };
   const items = await runActorSync<Post>(
     "apify/facebook-posts-scraper",
@@ -186,13 +224,19 @@ export async function fetchFacebookMentions(handle: string, token: string): Prom
     .map((p): RawMention | null => {
       const content = clean(p.text);
       if (!content) return null;
+      const id = p.postId ?? null;
+      const url = p.url ?? null;
       return {
         network: "facebook",
-        external_id: `fb_${p.postId ?? p.url ?? Math.random()}`,
+        external_id: `fb_${id ?? url ?? Math.random()}`,
         author: p.user?.name ?? handle,
         content: content.slice(0, 1200),
-        url: p.url ?? null,
+        url,
         posted_at: p.time ?? null,
+        parent_post_id: id,
+        parent_post_url: url,
+        parent_post_caption: truncate(content, 240),
+        parent_post_thumbnail: p.thumbnailUrl ?? null,
       };
     })
     .filter((x): x is RawMention => x !== null);

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
 
 export const refreshMySentiment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -9,6 +10,33 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
     const lovableKey = process.env.LOVABLE_API_KEY;
     if (!apifyToken) throw new Error("APIFY_TOKEN não configurado");
     if (!lovableKey) throw new Error("LOVABLE_API_KEY não configurado");
+
+    // Plan-based cooldown
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const cooldown = manualCooldownHours(profile?.plan);
+    if (cooldown > 0) {
+      const { data: last } = await context.supabase
+        .from("sentiment_snapshots")
+        .select("created_at")
+        .eq("user_id", context.userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (last?.created_at) {
+        const elapsed = Date.now() - new Date(last.created_at).getTime();
+        const remaining = cooldown * 3600000 - elapsed;
+        if (remaining > 0) {
+          throw new Error(
+            `Refresh manual disponível em ${formatCooldownRemaining(remaining)}. Faça upgrade do plano para liberar atualizações sob demanda.`,
+          );
+        }
+      }
+    }
+
     const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
     return refreshSentimentForUser(context.supabase, context.userId, apifyToken, lovableKey);
   });
@@ -52,7 +80,9 @@ export const listMyMentions = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("social_mentions")
-      .select("id, network, author, content, url, sentiment, score, posted_at, collected_at")
+      .select(
+        "id, network, author, content, url, sentiment, score, posted_at, collected_at, parent_post_id, parent_post_url, parent_post_caption, parent_post_thumbnail",
+      )
       .eq("user_id", context.userId)
       .order("collected_at", { ascending: false })
       .limit(data.limit);
@@ -61,4 +91,26 @@ export const listMyMentions = createServerFn({ method: "GET" })
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
+  });
+
+export const getManualCooldownStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const plan = profile?.plan ?? "basico";
+    const cooldown = manualCooldownHours(plan);
+    const { data: last } = await context.supabase
+      .from("sentiment_snapshots")
+      .select("created_at")
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastAt = last?.created_at ? new Date(last.created_at).getTime() : 0;
+    const remaining = cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
+    return { plan, cooldownHours: cooldown, remainingMs: remaining, lastAt: last?.created_at ?? null };
   });
