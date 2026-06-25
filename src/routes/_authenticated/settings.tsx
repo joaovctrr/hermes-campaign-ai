@@ -283,9 +283,11 @@ function SettingsPage() {
             </div>
           </Section>
 
+          <Section
             title="Redes sociais monitoradas"
             subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
           >
+
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="Instagram (sem @)">
                 <Input
