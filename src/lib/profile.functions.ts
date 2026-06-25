@@ -14,6 +14,13 @@ export const getMyProfile = createServerFn({ method: "GET" })
     return data;
   });
 
+const HandleSchema = z
+  .string()
+  .max(80)
+  .transform((s) => s.replace(/^@/, "").trim())
+  .optional()
+  .nullable();
+
 const UpdateSchema = z.object({
   full_name: z.string().min(1).max(120),
   political_role: z.string().max(160).optional().nullable(),
@@ -21,6 +28,11 @@ const UpdateSchema = z.object({
   bio: z.string().max(2000).optional().nullable(),
   tone: z.string().max(400).optional().nullable(),
   monitored_themes: z.array(z.string().min(1).max(80)).max(20).default([]),
+  instagram_handle: HandleSchema,
+  twitter_handle: HandleSchema,
+  tiktok_handle: HandleSchema,
+  facebook_handle: HandleSchema,
+  mention_keywords: z.array(z.string().min(1).max(80)).max(20).default([]),
   onboarded: z.boolean().optional(),
 });
 
