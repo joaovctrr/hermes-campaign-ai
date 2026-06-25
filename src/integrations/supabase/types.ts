@@ -92,11 +92,13 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          cron_interval_hours: number
           facebook_handle: string | null
           full_name: string | null
           id: string
           instagram_handle: string | null
           mention_keywords: string[] | null
+          monitored_networks: string[]
           monitored_themes: string[] | null
           onboarded: boolean
           plan: string
@@ -110,11 +112,13 @@ export type Database = {
         Insert: {
           bio?: string | null
           created_at?: string
+          cron_interval_hours?: number
           facebook_handle?: string | null
           full_name?: string | null
           id: string
           instagram_handle?: string | null
           mention_keywords?: string[] | null
+          monitored_networks?: string[]
           monitored_themes?: string[] | null
           onboarded?: boolean
           plan?: string
@@ -128,11 +132,13 @@ export type Database = {
         Update: {
           bio?: string | null
           created_at?: string
+          cron_interval_hours?: number
           facebook_handle?: string | null
           full_name?: string | null
           id?: string
           instagram_handle?: string | null
           mention_keywords?: string[] | null
+          monitored_networks?: string[]
           monitored_themes?: string[] | null
           onboarded?: boolean
           plan?: string
