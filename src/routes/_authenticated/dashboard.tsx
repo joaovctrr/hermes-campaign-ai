@@ -233,8 +233,7 @@ function DashboardPage() {
               ) : (
                 <ol className="space-y-3">
                   {insights.recommendations.map((r, i) => {
-                    const h = hashRec(r);
-                    const current = feedbackMap.get(h);
+                    const current = feedbackMap.get(normalize(r));
                     return (
                       <li key={i} className="text-sm leading-relaxed">
                         <div className="flex gap-3">
