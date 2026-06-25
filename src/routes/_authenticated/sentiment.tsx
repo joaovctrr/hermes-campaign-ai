@@ -229,11 +229,19 @@ function SentimentPage() {
                   </div>
 
                   {m.parent_post_url && (
-                    <a
-                      href={m.parent_post_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 flex gap-3 rounded-md border border-border bg-muted/30 p-2.5 hover:bg-muted/60 transition"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPostModal({
+                          network: m.network,
+                          url: m.parent_post_url,
+                          caption: m.parent_post_caption,
+                          thumbnail: m.parent_post_thumbnail,
+                          posted_at: m.posted_at,
+                          author: m.author,
+                        })
+                      }
+                      className="mt-3 flex w-full gap-3 rounded-md border border-border bg-muted/30 p-2.5 text-left hover:bg-muted/60 transition"
                     >
                       {m.parent_post_thumbnail && (
                         <img
@@ -246,7 +254,7 @@ function SentimentPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
                           <MessageSquare className="h-3 w-3" />
-                          Em resposta a
+                          Em resposta a · clique para ver
                         </div>
                         {m.parent_post_caption && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
@@ -254,7 +262,7 @@ function SentimentPage() {
                           </p>
                         )}
                       </div>
-                    </a>
+                    </button>
                   )}
 
                   <p className="mt-3 text-sm leading-relaxed">{m.content}</p>
@@ -280,6 +288,42 @@ function SentimentPage() {
           Última coleta: {new Date(snap.created_at).toLocaleString("pt-BR")} · Cron a cada 6h.
         </p>
       )}
+
+      <Dialog open={!!postModal} onOpenChange={(o) => !o && setPostModal(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif capitalize">
+              Post original · {postModal?.network}
+            </DialogTitle>
+            <DialogDescription>
+              {postModal?.author && <>@{postModal.author} · </>}
+              {postModal?.posted_at && new Date(postModal.posted_at).toLocaleString("pt-BR")}
+            </DialogDescription>
+          </DialogHeader>
+          {postModal?.thumbnail && (
+            <img
+              src={postModal.thumbnail}
+              alt=""
+              className="w-full max-h-80 object-cover rounded-md border border-border"
+            />
+          )}
+          {postModal?.caption ? (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{postModal.caption}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Sem legenda capturada.</p>
+          )}
+          {postModal?.url && (
+            <a
+              href={postModal.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              Abrir no {postModal.network} <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
