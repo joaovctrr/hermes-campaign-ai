@@ -19,6 +19,7 @@ import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio.index'
 import { Route as AuthenticatedStudioIdRouteImport } from './routes/_authenticated/studio.$id'
+import { Route as ApiPublicHooksRefreshSentimentRouteImport } from './routes/api/public/hooks/refresh-sentiment'
 import { Route as ApiPublicHooksRefreshRadarRouteImport } from './routes/api/public/hooks/refresh-radar'
 
 const AuthRoute = AuthRouteImport.update({
@@ -71,6 +72,12 @@ const AuthenticatedStudioIdRoute = AuthenticatedStudioIdRouteImport.update({
   path: '/studio/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicHooksRefreshSentimentRoute =
+  ApiPublicHooksRefreshSentimentRouteImport.update({
+    id: '/api/public/hooks/refresh-sentiment',
+    path: '/api/public/hooks/refresh-sentiment',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRefreshRadarRoute =
   ApiPublicHooksRefreshRadarRouteImport.update({
     id: '/api/public/hooks/refresh-radar',
@@ -89,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
+  '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -101,6 +109,7 @@ export interface FileRoutesByTo {
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/studio': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
+  '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,6 +124,7 @@ export interface FileRoutesById {
   '/_authenticated/studio/$id': typeof AuthenticatedStudioIdRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
+  '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/studio/$id'
     | '/studio/'
     | '/api/public/hooks/refresh-radar'
+    | '/api/public/hooks/refresh-sentiment'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/studio/$id'
     | '/studio'
     | '/api/public/hooks/refresh-radar'
+    | '/api/public/hooks/refresh-sentiment'
   id:
     | '__root__'
     | '/'
@@ -154,6 +166,7 @@ export interface FileRouteTypes {
     | '/_authenticated/studio/$id'
     | '/_authenticated/studio/'
     | '/api/public/hooks/refresh-radar'
+    | '/api/public/hooks/refresh-sentiment'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -161,6 +174,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksRefreshRadarRoute: typeof ApiPublicHooksRefreshRadarRoute
+  ApiPublicHooksRefreshSentimentRoute: typeof ApiPublicHooksRefreshSentimentRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -235,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/refresh-sentiment': {
+      id: '/api/public/hooks/refresh-sentiment'
+      path: '/api/public/hooks/refresh-sentiment'
+      fullPath: '/api/public/hooks/refresh-sentiment'
+      preLoaderRoute: typeof ApiPublicHooksRefreshSentimentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/refresh-radar': {
       id: '/api/public/hooks/refresh-radar'
       path: '/api/public/hooks/refresh-radar'
@@ -273,6 +294,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksRefreshRadarRoute: ApiPublicHooksRefreshRadarRoute,
+  ApiPublicHooksRefreshSentimentRoute: ApiPublicHooksRefreshSentimentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

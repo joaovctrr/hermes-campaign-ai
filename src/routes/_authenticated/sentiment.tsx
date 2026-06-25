@@ -1,45 +1,194 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { BarChart3, Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { RefreshCw, ExternalLink, Instagram, Twitter, Facebook, Music2 } from "lucide-react";
+import { getLatestSnapshot, listMyMentions, refreshMySentiment } from "@/lib/sentiment.functions";
+import { getMyProfile } from "@/lib/profile.functions";
 
 export const Route = createFileRoute("/_authenticated/sentiment")({
   component: SentimentPage,
 });
 
+const NETWORK_ICON = {
+  instagram: Instagram,
+  twitter: Twitter,
+  tiktok: Music2,
+  facebook: Facebook,
+} as const;
+
 function SentimentPage() {
+  const profileFn = useServerFn(getMyProfile);
+  const snapshotFn = useServerFn(getLatestSnapshot);
+  const mentionsFn = useServerFn(listMyMentions);
+  const refreshFn = useServerFn(refreshMySentiment);
+  const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<"todas" | "positivo" | "neutro" | "negativo">("todas");
+
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
+  const { data: snap, refetch: refetchSnap } = useQuery({
+    queryKey: ["sentiment-snapshot"],
+    queryFn: () => snapshotFn(),
+  });
+  const { data: mentions, refetch: refetchMentions } = useQuery({
+    queryKey: ["mentions", tab],
+    queryFn: () => mentionsFn({ data: tab === "todas" ? {} : { sentiment: tab } }),
+  });
+
+  const hasHandles =
+    !!profile?.instagram_handle ||
+    !!profile?.twitter_handle ||
+    !!profile?.tiktok_handle ||
+    !!profile?.facebook_handle ||
+    (profile?.mention_keywords?.length ?? 0) > 0;
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const r = await refreshFn();
+      toast.success(
+        r.inserted
+          ? `${r.inserted} novas menções classificadas.`
+          : r.reason === "no_handles"
+          ? "Adicione um handle em Configurações."
+          : r.reason === "no_results"
+          ? "Apify não retornou itens. Tente novamente em alguns minutos."
+          : "Nada novo desde a última coleta.",
+      );
+      await Promise.all([refetchSnap(), refetchMentions()]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro na coleta");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const total = snap?.total ?? 0;
+  const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
+  const pos = pct(snap?.positivo ?? 0);
+  const neu = pct(snap?.neutro ?? 0);
+  const neg = pct(snap?.negativo ?? 0);
+
   return (
     <AppShell
       title="Termômetro Social"
-      subtitle="Análise de sentimento dos comentários do seu Instagram."
+      subtitle="Sentimento agregado das últimas menções coletadas via Apify (7 dias)."
+      actions={
+        <Button onClick={refresh} disabled={refreshing || !hasHandles}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Coletando..." : "Atualizar agora"}
+        </Button>
+      }
     >
-      <div className="rounded-xl border border-border bg-card p-12 max-w-2xl mx-auto text-center">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-secondary mb-4">
-          <Lock className="h-5 w-5 text-muted-foreground" />
+      {!hasHandles && (
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 mb-6">
+          <h2 className="font-serif text-lg mb-1">Configure pelo menos uma rede social</h2>
+          <p className="text-sm text-muted-foreground">
+            Vá em <strong>Configurações → Redes sociais monitoradas</strong> e adicione o handle de Instagram, X,
+            TikTok ou Facebook. O Termômetro roda sozinho a cada 6h e também pelo botão acima.
+          </p>
         </div>
-        <h2 className="font-serif text-2xl">Disponível no plano Avançado</h2>
-        <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
-          O Termômetro Social conecta o Instagram do candidato via Meta API, classifica
-          comentários (Apoio, Crítica, Ataque/Troll, Dúvida) e identifica top defensores e detratores
-          para mobilização de base.
-        </p>
-        <div className="mt-8 grid grid-cols-3 gap-4 max-w-md mx-auto text-xs text-muted-foreground">
-          <Stat label="Sentimento" value="—" />
-          <Stat label="Apoio" value="—" />
-          <Stat label="Ataques" value="—" />
-        </div>
-        <div className="mt-8 inline-flex items-center gap-2 text-xs text-gold">
-          <BarChart3 className="h-3.5 w-3.5" /> Em breve
-        </div>
+      )}
+
+      <div className="grid lg:grid-cols-4 gap-4 mb-8">
+        <StatCard label="Menções (7d)" value={total} />
+        <StatCard label="Positivas" value={`${pos}%`} accent="text-emerald-600" />
+        <StatCard label="Neutras" value={`${neu}%`} accent="text-muted-foreground" />
+        <StatCard label="Negativas" value={`${neg}%`} accent="text-destructive" />
       </div>
+
+      {total > 0 && (
+        <div className="rounded-xl border border-border bg-card p-6 mb-8">
+          <h2 className="font-serif text-lg mb-3">Distribuição</h2>
+          <div className="flex h-4 w-full overflow-hidden rounded-full bg-muted">
+            <div className="bg-emerald-500" style={{ width: `${pos}%` }} />
+            <div className="bg-muted-foreground/40" style={{ width: `${neu}%` }} />
+            <div className="bg-destructive" style={{ width: `${neg}%` }} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            {Object.entries((snap?.networks as Record<string, { total: number; pos: number; neg: number; neu: number }>) ?? {}).map(
+              ([net, c]) => (
+                <div key={net} className="rounded-md border border-border p-3">
+                  <div className="font-medium capitalize">{net}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="todas">Todas</TabsTrigger>
+          <TabsTrigger value="positivo">Positivas</TabsTrigger>
+          <TabsTrigger value="neutro">Neutras</TabsTrigger>
+          <TabsTrigger value="negativo">Negativas</TabsTrigger>
+        </TabsList>
+        <TabsContent value={tab} className="mt-4 space-y-3">
+          {(mentions ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma menção nesta categoria ainda.</p>
+          ) : (
+            (mentions ?? []).map((m) => {
+              const Icon = NETWORK_ICON[m.network as keyof typeof NETWORK_ICON];
+              const sentColor =
+                m.sentiment === "positivo"
+                  ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+                  : m.sentiment === "negativo"
+                  ? "bg-destructive/10 text-destructive border-destructive/30"
+                  : "bg-muted text-muted-foreground border-border";
+              return (
+                <article key={m.id} className="rounded-lg border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="capitalize">{m.network}</span>
+                      {m.author && <span>· @{m.author}</span>}
+                      {m.posted_at && <span>· {new Date(m.posted_at).toLocaleDateString("pt-BR")}</span>}
+                    </div>
+                    <Badge variant="outline" className={`text-xs ${sentColor}`}>
+                      {m.sentiment}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed">{m.content}</p>
+                  {m.url && (
+                    <a
+                      href={m.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      Abrir original <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {snap?.created_at && (
+        <p className="mt-6 text-xs text-muted-foreground">
+          Última coleta: {new Date(snap.created_at).toLocaleString("pt-BR")} · Atualização automática a cada 6h.
+        </p>
+      )}
     </AppShell>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="rounded-md border border-border p-3">
-      <div className="font-serif text-xl text-foreground">{value}</div>
-      <div className="mt-1 uppercase tracking-wider">{label}</div>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`mt-2 font-serif text-3xl ${accent ?? ""}`}>{value}</div>
     </div>
   );
 }

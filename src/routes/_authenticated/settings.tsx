@@ -32,8 +32,14 @@ function SettingsPage() {
     bio: "",
     tone: "",
     themes: [] as string[],
+    instagram_handle: "",
+    twitter_handle: "",
+    tiktok_handle: "",
+    facebook_handle: "",
+    mention_keywords: [] as string[],
   });
   const [themeInput, setThemeInput] = useState("");
+  const [keywordInput, setKeywordInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -45,6 +51,11 @@ function SettingsPage() {
         bio: profile.bio ?? "",
         tone: profile.tone ?? "",
         themes: profile.monitored_themes ?? [],
+        instagram_handle: profile.instagram_handle ?? "",
+        twitter_handle: profile.twitter_handle ?? "",
+        tiktok_handle: profile.tiktok_handle ?? "",
+        facebook_handle: profile.facebook_handle ?? "",
+        mention_keywords: profile.mention_keywords ?? [],
       });
     }
   }, [profile]);
@@ -54,6 +65,13 @@ function SettingsPage() {
     if (!t || form.themes.includes(t)) return;
     setForm((f) => ({ ...f, themes: [...f.themes, t] }));
     setThemeInput("");
+  }
+
+  function addKeyword() {
+    const t = keywordInput.trim();
+    if (!t || form.mention_keywords.includes(t)) return;
+    setForm((f) => ({ ...f, mention_keywords: [...f.mention_keywords, t] }));
+    setKeywordInput("");
   }
 
   async function save(e: React.FormEvent) {
@@ -69,6 +87,11 @@ function SettingsPage() {
           bio: form.bio || null,
           tone: form.tone || null,
           monitored_themes: form.themes,
+          instagram_handle: form.instagram_handle || null,
+          twitter_handle: form.twitter_handle || null,
+          tiktok_handle: form.tiktok_handle || null,
+          facebook_handle: form.facebook_handle || null,
+          mention_keywords: form.mention_keywords,
           onboarded: true,
         },
       });
@@ -159,6 +182,80 @@ function SettingsPage() {
               )}
             </div>
           </Section>
+
+          <Section
+            title="Redes sociais monitoradas"
+            subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
+          >
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Instagram (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.instagram_handle}
+                  onChange={(e) => setForm({ ...form, instagram_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="Twitter / X (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.twitter_handle}
+                  onChange={(e) => setForm({ ...form, twitter_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="TikTok (sem @)">
+                <Input
+                  placeholder="ex: candidato"
+                  value={form.tiktok_handle}
+                  onChange={(e) => setForm({ ...form, tiktok_handle: e.target.value })}
+                />
+              </Field>
+              <Field label="Facebook (usuário ou página)">
+                <Input
+                  placeholder="ex: candidato.oficial"
+                  value={form.facebook_handle}
+                  onChange={(e) => setForm({ ...form, facebook_handle: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="pt-2">
+              <Label>Palavras-chave de menção (Twitter/X)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Termos extras para detectar menções mesmo sem @ ao seu handle.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ex: Nome Sobrenome"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addKeyword();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addKeyword}>Adicionar</Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {form.mention_keywords.map((t) => (
+                  <Badge key={t} variant="secondary" className="gap-1 pl-3">
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm({ ...form, mention_keywords: form.mention_keywords.filter((x) => x !== t) })
+                      }
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+
 
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</Button>

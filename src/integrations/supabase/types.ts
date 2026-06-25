@@ -92,41 +92,146 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          facebook_handle: string | null
           full_name: string | null
           id: string
+          instagram_handle: string | null
+          mention_keywords: string[] | null
           monitored_themes: string[] | null
           onboarded: boolean
           plan: string
           political_role: string | null
           region: string | null
+          tiktok_handle: string | null
           tone: string | null
+          twitter_handle: string | null
           updated_at: string
         }
         Insert: {
           bio?: string | null
           created_at?: string
+          facebook_handle?: string | null
           full_name?: string | null
           id: string
+          instagram_handle?: string | null
+          mention_keywords?: string[] | null
           monitored_themes?: string[] | null
           onboarded?: boolean
           plan?: string
           political_role?: string | null
           region?: string | null
+          tiktok_handle?: string | null
           tone?: string | null
+          twitter_handle?: string | null
           updated_at?: string
         }
         Update: {
           bio?: string | null
           created_at?: string
+          facebook_handle?: string | null
           full_name?: string | null
           id?: string
+          instagram_handle?: string | null
+          mention_keywords?: string[] | null
           monitored_themes?: string[] | null
           onboarded?: boolean
           plan?: string
           political_role?: string | null
           region?: string | null
+          tiktok_handle?: string | null
           tone?: string | null
+          twitter_handle?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sentiment_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          negativo: number
+          networks: Json
+          neutro: number
+          positivo: number
+          top_topics: Json
+          total: number
+          user_id: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          negativo?: number
+          networks?: Json
+          neutro?: number
+          positivo?: number
+          top_topics?: Json
+          total?: number
+          user_id: string
+          window_end?: string
+          window_start: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          negativo?: number
+          networks?: Json
+          neutro?: number
+          positivo?: number
+          top_topics?: Json
+          total?: number
+          user_id?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      social_mentions: {
+        Row: {
+          author: string | null
+          collected_at: string
+          content: string
+          created_at: string
+          external_id: string | null
+          id: string
+          network: string
+          posted_at: string | null
+          score: number | null
+          sentiment: string
+          source_type: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          author?: string | null
+          collected_at?: string
+          content: string
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          network: string
+          posted_at?: string | null
+          score?: number | null
+          sentiment?: string
+          source_type?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          author?: string | null
+          collected_at?: string
+          content?: string
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          network?: string
+          posted_at?: string | null
+          score?: number | null
+          sentiment?: string
+          source_type?: string
+          url?: string | null
+          user_id?: string
         }
         Relationships: []
       }
