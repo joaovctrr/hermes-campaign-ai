@@ -37,6 +37,15 @@ function SentimentPage() {
   const cooldownFn = useServerFn(getManualCooldownStatus);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"todas" | "positivo" | "neutro" | "negativo">("todas");
+  const [network, setNetwork] = useState<"todas" | "instagram" | "twitter" | "tiktok" | "facebook">("todas");
+  const [postModal, setPostModal] = useState<null | {
+    network: string;
+    url?: string | null;
+    caption?: string | null;
+    thumbnail?: string | null;
+    posted_at?: string | null;
+    author?: string | null;
+  }>(null);
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
   const { data: snap, refetch: refetchSnap } = useQuery({
@@ -44,8 +53,14 @@ function SentimentPage() {
     queryFn: () => snapshotFn(),
   });
   const { data: mentions, refetch: refetchMentions } = useQuery({
-    queryKey: ["mentions", tab],
-    queryFn: () => mentionsFn({ data: tab === "todas" ? {} : { sentiment: tab } }),
+    queryKey: ["mentions", tab, network],
+    queryFn: () =>
+      mentionsFn({
+        data: {
+          ...(tab === "todas" ? {} : { sentiment: tab }),
+          ...(network === "todas" ? {} : { network }),
+        },
+      }),
   });
   const { data: cd, refetch: refetchCd } = useQuery({
     queryKey: ["cooldown-sentiment"],
