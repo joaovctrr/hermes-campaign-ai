@@ -1,6 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, ScrollText, Settings, LogOut } from "lucide-react";
+import logo from "@/assets/informa-agora-logo.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -33,8 +34,8 @@ export function AppShell({ children, title, subtitle, actions }: {
       <aside className="w-64 shrink-0 bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="p-6 border-b border-sidebar-border/40">
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-sm bg-gold text-gold-foreground font-serif">H</div>
-            <span className="font-serif text-xl">Hermes</span>
+            <img src={logo.url} alt="Informa Ágora" className="h-8 w-8 rounded-sm bg-white object-contain p-0.5" />
+            <span className="font-serif text-xl">Informa Ágora</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">

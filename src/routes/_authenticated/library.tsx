@@ -43,7 +43,7 @@ function LibraryPage() {
   return (
     <AppShell
       title="Biblioteca de Conteúdo"
-      subtitle="Histórico de todos os roteiros gerados pelo Hermes."
+      subtitle="Histórico de todos os roteiros gerados pelo Informa Ágora."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         {(["all", "instagram", "tiktok", "twitter"] as const).map((k) => (

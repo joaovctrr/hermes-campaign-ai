@@ -71,13 +71,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Hermes — Inteligência política em tempo real" },
+      { title: "Informa Ágora — Inteligência política em tempo real" },
       {
         name: "description",
         content:
           "A inteligência artificial que antecipa o debate. Controle a narrativa antes que ela controle você.",
       },
-      { property: "og:title", content: "Hermes — Inteligência política em tempo real" },
+      { property: "og:title", content: "Informa Ágora — Inteligência política em tempo real" },
       {
         property: "og:description",
         content:

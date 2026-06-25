@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Newspaper, Brain, Megaphone, ShieldAlert, Clock, Sparkles } from "lucide-react";
+import logo from "@/assets/informa-agora-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Hermes — Inteligência política antes do debate" },
+      { title: "Informa Ágora — Inteligência política antes do debate" },
       {
         name: "description",
         content:
@@ -35,10 +36,8 @@ function Nav() {
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container-prose flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-sm bg-primary text-primary-foreground font-serif text-lg">
-            H
-          </div>
-          <span className="font-serif text-xl tracking-tight">Hermes</span>
+          <img src={logo.url} alt="Informa Ágora" className="h-9 w-9 object-contain" />
+          <span className="font-serif text-xl tracking-tight">Informa Ágora</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
           <a href="#como-funciona" className="hover:text-foreground transition">Como funciona</a>
@@ -66,7 +65,7 @@ function Hero() {
             A inteligência artificial que antecipa o debate.
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed">
-            Hermes lê o noticiário regional a cada 3 horas, identifica o que pode virar crise e entrega
+            Informa Ágora lê o noticiário regional a cada 3 horas, identifica o que pode virar crise e entrega
             o roteiro pronto para o seu posicionamento — antes que a narrativa fuja do controle.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
@@ -103,7 +102,7 @@ function Hero() {
 }
 
 const PAINS = [
-  { icon: Clock, title: "Sem tempo para ler jornais", text: "Hermes resume o que importa em 2 frases por matéria, por tema e por região." },
+  { icon: Clock, title: "Sem tempo para ler jornais", text: "Informa Ágora resume o que importa em 2 frases por matéria, por tema e por região." },
   { icon: ShieldAlert, title: "Risco de cancelamento", text: "Alertas de urgência destacam pautas com potencial de crise antes que a oposição reaja." },
   { icon: Sparkles, title: "Lentidão para criar conteúdo", text: "Roteiros prontos para Instagram, Reels e X em segundos, no seu tom de voz." },
 ];
@@ -131,7 +130,7 @@ function Pains() {
 
 const STEPS = [
   { n: "01", icon: Newspaper, title: "Coleta de notícias", text: "Cron de 3 em 3 horas varre veículos regionais e nacionais sobre os temas que você monitora." },
-  { n: "02", icon: Brain, title: "Análise Hermes", text: "IA classifica tema, sentimento e urgência. Crises sobem ao topo do radar com aviso crítico." },
+  { n: "02", icon: Brain, title: "Análise Informa Ágora", text: "IA classifica tema, sentimento e urgência. Crises sobem ao topo do radar com aviso crítico." },
   { n: "03", icon: Megaphone, title: "Estratégia de conteúdo", text: "Em um clique, roteiro pronto para carrossel, vídeo curto ou thread, no tom do candidato." },
 ];
 
@@ -247,7 +246,7 @@ function Closing() {
           Comece hoje. Em 5 minutos seu radar está calibrado e o primeiro post sai pronto para revisão.
         </p>
         <Link to="/auth" className="inline-block mt-10">
-          <Button size="lg">Entrar no Hermes</Button>
+          <Button size="lg">Entrar no Informa Ágora</Button>
         </Link>
       </div>
     </section>
@@ -258,7 +257,7 @@ function Footer() {
   return (
     <footer className="bg-background">
       <div className="container-prose py-10 flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
-        <span>© {new Date().getFullYear()} Hermes Inteligência Política</span>
+        <span>© {new Date().getFullYear()} Informa Ágora Inteligência Política</span>
         <span className="text-xs">Conteúdo gerado pode ser produzido com auxílio de IA — sempre rotulado conforme exige a legislação eleitoral.</span>
       </div>
     </footer>
