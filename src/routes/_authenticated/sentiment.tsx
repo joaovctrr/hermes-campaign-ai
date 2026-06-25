@@ -7,9 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { RefreshCw, ExternalLink, Instagram, Twitter, Facebook, Music2 } from "lucide-react";
-import { getLatestSnapshot, listMyMentions, refreshMySentiment } from "@/lib/sentiment.functions";
+import { RefreshCw, ExternalLink, Instagram, Twitter, Facebook, Music2, Lock, MessageSquare } from "lucide-react";
+import {
+  getLatestSnapshot,
+  listMyMentions,
+  refreshMySentiment,
+  getManualCooldownStatus,
+} from "@/lib/sentiment.functions";
 import { getMyProfile } from "@/lib/profile.functions";
+import { formatCooldownRemaining, planLabel } from "@/lib/plan-limits";
 
 export const Route = createFileRoute("/_authenticated/sentiment")({
   component: SentimentPage,
@@ -27,6 +33,7 @@ function SentimentPage() {
   const snapshotFn = useServerFn(getLatestSnapshot);
   const mentionsFn = useServerFn(listMyMentions);
   const refreshFn = useServerFn(refreshMySentiment);
+  const cooldownFn = useServerFn(getManualCooldownStatus);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"todas" | "positivo" | "neutro" | "negativo">("todas");
 
@@ -39,6 +46,11 @@ function SentimentPage() {
     queryKey: ["mentions", tab],
     queryFn: () => mentionsFn({ data: tab === "todas" ? {} : { sentiment: tab } }),
   });
+  const { data: cd, refetch: refetchCd } = useQuery({
+    queryKey: ["cooldown-sentiment"],
+    queryFn: () => cooldownFn(),
+    refetchInterval: 60000,
+  });
 
   const hasHandles =
     !!profile?.instagram_handle ||
@@ -46,6 +58,8 @@ function SentimentPage() {
     !!profile?.tiktok_handle ||
     !!profile?.facebook_handle ||
     (profile?.mention_keywords?.length ?? 0) > 0;
+
+  const blocked = (cd?.remainingMs ?? 0) > 0;
 
   async function refresh() {
     setRefreshing(true);
@@ -55,14 +69,15 @@ function SentimentPage() {
         r.inserted
           ? `${r.inserted} novas menções classificadas.`
           : r.reason === "no_handles"
-          ? "Adicione um handle em Configurações."
-          : r.reason === "no_results"
-          ? "Apify não retornou itens. Tente novamente em alguns minutos."
-          : "Nada novo desde a última coleta.",
+            ? "Adicione um handle em Configurações."
+            : r.reason === "no_results"
+              ? "Apify não retornou itens. Tente novamente em alguns minutos."
+              : "Nada novo desde a última coleta.",
       );
-      await Promise.all([refetchSnap(), refetchMentions()]);
+      await Promise.all([refetchSnap(), refetchMentions(), refetchCd()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro na coleta");
+      await refetchCd();
     } finally {
       setRefreshing(false);
     }
@@ -79,10 +94,25 @@ function SentimentPage() {
       title="Termômetro Social"
       subtitle="Sentimento agregado das últimas menções coletadas via Apify (7 dias)."
       actions={
-        <Button onClick={refresh} disabled={refreshing || !hasHandles}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Coletando..." : "Atualizar agora"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {cd && (
+            <Badge variant="outline" className="text-xs">
+              Plano {planLabel(cd.plan)} · cooldown {cd.cooldownHours === 0 ? "livre" : `${cd.cooldownHours}h`}
+            </Badge>
+          )}
+          <Button onClick={refresh} disabled={refreshing || !hasHandles || blocked}>
+            {blocked ? (
+              <Lock className="h-4 w-4 mr-2" />
+            ) : (
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            )}
+            {blocked
+              ? `Disponível em ${formatCooldownRemaining(cd!.remainingMs)}`
+              : refreshing
+                ? "Coletando..."
+                : "Atualizar agora"}
+          </Button>
+        </div>
       }
     >
       {!hasHandles && (
@@ -90,7 +120,7 @@ function SentimentPage() {
           <h2 className="font-serif text-lg mb-1">Configure pelo menos uma rede social</h2>
           <p className="text-sm text-muted-foreground">
             Vá em <strong>Configurações → Redes sociais monitoradas</strong> e adicione o handle de Instagram, X,
-            TikTok ou Facebook. O Termômetro roda sozinho a cada 6h e também pelo botão acima.
+            TikTok ou Facebook.
           </p>
         </div>
       )}
@@ -142,8 +172,8 @@ function SentimentPage() {
                 m.sentiment === "positivo"
                   ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
                   : m.sentiment === "negativo"
-                  ? "bg-destructive/10 text-destructive border-destructive/30"
-                  : "bg-muted text-muted-foreground border-border";
+                    ? "bg-destructive/10 text-destructive border-destructive/30"
+                    : "bg-muted text-muted-foreground border-border";
               return (
                 <article key={m.id} className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -157,7 +187,37 @@ function SentimentPage() {
                       {m.sentiment}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed">{m.content}</p>
+
+                  {m.parent_post_url && (
+                    <a
+                      href={m.parent_post_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 flex gap-3 rounded-md border border-border bg-muted/30 p-2.5 hover:bg-muted/60 transition"
+                    >
+                      {m.parent_post_thumbnail && (
+                        <img
+                          src={m.parent_post_thumbnail}
+                          alt=""
+                          className="h-14 w-14 rounded object-cover shrink-0"
+                          loading="lazy"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <MessageSquare className="h-3 w-3" />
+                          Em resposta a
+                        </div>
+                        {m.parent_post_caption && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                            {m.parent_post_caption}
+                          </p>
+                        )}
+                      </div>
+                    </a>
+                  )}
+
+                  <p className="mt-3 text-sm leading-relaxed">{m.content}</p>
                   {m.url && (
                     <a
                       href={m.url}
@@ -177,7 +237,7 @@ function SentimentPage() {
 
       {snap?.created_at && (
         <p className="mt-6 text-xs text-muted-foreground">
-          Última coleta: {new Date(snap.created_at).toLocaleString("pt-BR")} · Atualização automática a cada 6h.
+          Última coleta: {new Date(snap.created_at).toLocaleString("pt-BR")} · Cron a cada 6h.
         </p>
       )}
     </AppShell>

@@ -76,6 +76,10 @@ export async function refreshSentimentForUser(
     sentiment: m.sentiment,
     score: m.score,
     posted_at: m.posted_at ? safeDate(m.posted_at) : null,
+    parent_post_id: m.parent_post_id,
+    parent_post_url: m.parent_post_url,
+    parent_post_caption: m.parent_post_caption,
+    parent_post_thumbnail: m.parent_post_thumbnail,
   }));
 
   const { error: insErr } = await supabase

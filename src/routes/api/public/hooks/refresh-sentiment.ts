@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Called by pg_cron every 6h. Authenticated via the Supabase publishable key
- * in the `apikey` header. Runs the Apify-backed sentiment refresh for every
- * onboarded profile that has at least one social handle.
+ * Called by pg_cron every 6h. Authenticated via Supabase publishable key.
+ * Runs Apify-backed sentiment refresh for each onboarded profile that has
+ * at least one social handle and is past its plan/user-defined interval.
+ * Writes structured run + per-user logs so users can audit the cron in the UI.
  */
 export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
   server: {
@@ -28,35 +29,82 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
 
+        const HOOK = "refresh-sentiment";
+
+        // Open a run row
+        const { data: runRow } = await supabaseAdmin
+          .from("cron_run_logs")
+          .insert({ hook: HOOK, status: "running" })
+          .select("id")
+          .maybeSingle();
+        const runId = runRow?.id ?? null;
+
+        async function logUser(
+          userId: string,
+          action: "processed" | "skipped",
+          reason: string | null,
+          interval: number | null,
+          plan: string | null,
+          inserted: number | null,
+          err: string | null,
+        ) {
+          if (!runId) return;
+          await supabaseAdmin.from("cron_user_logs").insert({
+            run_id: runId,
+            user_id: userId,
+            hook: HOOK,
+            action,
+            reason,
+            interval_hours: interval,
+            plan,
+            inserted_count: inserted,
+            error: err,
+          });
+        }
+
         const { data: profiles, error } = await supabaseAdmin
           .from("profiles")
-          .select("id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan")
+          .select(
+            "id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan",
+          )
           .eq("onboarded", true);
         if (error) {
+          if (runId) {
+            await supabaseAdmin
+              .from("cron_run_logs")
+              .update({ status: "error", error: error.message, finished_at: new Date().toISOString() })
+              .eq("id", runId);
+          }
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });
         }
 
-        // Plan ceilings: básico = 24h mínimo, avançado = 12h, enterprise = 6h
         const planMin = (plan: string | null) =>
           plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
 
-        const candidates = (profiles ?? []).filter((p) => {
+        const all = profiles ?? [];
+        let processed = 0;
+        let skipped = 0;
+        const results: Array<Record<string, unknown>> = [];
+
+        for (const p of all) {
           const nets: string[] = p.monitored_networks ?? [];
           const hasSource =
             (nets.includes("instagram") && p.instagram_handle) ||
             (nets.includes("twitter") && (p.twitter_handle || (p.mention_keywords?.length ?? 0))) ||
             (nets.includes("tiktok") && p.tiktok_handle) ||
             (nets.includes("facebook") && p.facebook_handle);
-          return hasSource;
-        });
 
-        // Filter by cron interval vs last snapshot
-        const eligible: typeof candidates = [];
-        for (const p of candidates) {
           const interval = Math.max(p.cron_interval_hours ?? 6, planMin(p.plan));
+
+          if (!hasSource) {
+            skipped++;
+            await logUser(p.id, "skipped", "no_handles", interval, p.plan, null, null);
+            continue;
+          }
+
           const { data: last } = await supabaseAdmin
             .from("sentiment_snapshots")
             .select("created_at")
@@ -65,32 +113,42 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
             .limit(1)
             .maybeSingle();
           const lastMs = last?.created_at ? new Date(last.created_at).getTime() : 0;
-          const dueMs = Date.now() - interval * 3600 * 1000 + 5 * 60 * 1000; // 5min slack
-          if (lastMs <= dueMs) eligible.push(p);
-        }
+          const dueMs = Date.now() - interval * 3600 * 1000 + 5 * 60 * 1000;
 
-        const results: Array<{ user_id: string; collected: number; inserted: number; reason?: string; error?: string }> = [];
-        for (const p of eligible) {
+          if (lastMs > dueMs) {
+            skipped++;
+            const reason = interval > (p.cron_interval_hours ?? 6) ? "plan_floor" : "within_interval";
+            await logUser(p.id, "skipped", reason, interval, p.plan, null, null);
+            continue;
+          }
+
           try {
             const r = await refreshSentimentForUser(supabaseAdmin, p.id, apifyToken, lovableKey);
+            processed++;
+            await logUser(p.id, "processed", r.reason ?? null, interval, p.plan, r.inserted, null);
             results.push({ user_id: p.id, ...r });
           } catch (e) {
-            results.push({
-              user_id: p.id,
-              collected: 0,
-              inserted: 0,
-              error: e instanceof Error ? e.message : String(e),
-            });
+            const msg = e instanceof Error ? e.message : String(e);
+            await logUser(p.id, "processed", "error", interval, p.plan, 0, msg);
+            results.push({ user_id: p.id, inserted: 0, error: msg });
           }
         }
 
+        if (runId) {
+          await supabaseAdmin
+            .from("cron_run_logs")
+            .update({
+              status: "ok",
+              finished_at: new Date().toISOString(),
+              users_total: all.length,
+              users_processed: processed,
+              users_skipped: skipped,
+            })
+            .eq("id", runId);
+        }
+
         return new Response(
-          JSON.stringify({
-            ok: true,
-            users_processed: results.length,
-            total_inserted: results.reduce((s, r) => s + r.inserted, 0),
-            results,
-          }),
+          JSON.stringify({ ok: true, run_id: runId, users_total: all.length, users_processed: processed, users_skipped: skipped, results }),
           { headers: { "Content-Type": "application/json" } },
         );
       },
