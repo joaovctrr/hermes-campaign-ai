@@ -67,6 +67,13 @@ function SettingsPage() {
     setThemeInput("");
   }
 
+  function addKeyword() {
+    const t = keywordInput.trim();
+    if (!t || form.mention_keywords.includes(t)) return;
+    setForm((f) => ({ ...f, mention_keywords: [...f.mention_keywords, t] }));
+    setKeywordInput("");
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!form.full_name) return toast.error("Nome é obrigatório");
@@ -80,6 +87,11 @@ function SettingsPage() {
           bio: form.bio || null,
           tone: form.tone || null,
           monitored_themes: form.themes,
+          instagram_handle: form.instagram_handle || null,
+          twitter_handle: form.twitter_handle || null,
+          tiktok_handle: form.tiktok_handle || null,
+          facebook_handle: form.facebook_handle || null,
+          mention_keywords: form.mention_keywords,
           onboarded: true,
         },
       });
