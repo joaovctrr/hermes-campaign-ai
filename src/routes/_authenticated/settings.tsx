@@ -32,8 +32,14 @@ function SettingsPage() {
     bio: "",
     tone: "",
     themes: [] as string[],
+    instagram_handle: "",
+    twitter_handle: "",
+    tiktok_handle: "",
+    facebook_handle: "",
+    mention_keywords: [] as string[],
   });
   const [themeInput, setThemeInput] = useState("");
+  const [keywordInput, setKeywordInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -45,6 +51,11 @@ function SettingsPage() {
         bio: profile.bio ?? "",
         tone: profile.tone ?? "",
         themes: profile.monitored_themes ?? [],
+        instagram_handle: profile.instagram_handle ?? "",
+        twitter_handle: profile.twitter_handle ?? "",
+        tiktok_handle: profile.tiktok_handle ?? "",
+        facebook_handle: profile.facebook_handle ?? "",
+        mention_keywords: profile.mention_keywords ?? [],
       });
     }
   }, [profile]);
