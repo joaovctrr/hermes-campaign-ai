@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
 
         const { data: profiles, error } = await supabaseAdmin
           .from("profiles")
-          .select("id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords")
+          .select("id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan")
           .eq("onboarded", true);
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), {
@@ -39,14 +39,35 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           });
         }
 
-        const eligible = (profiles ?? []).filter(
-          (p) =>
-            p.instagram_handle ||
-            p.twitter_handle ||
-            p.tiktok_handle ||
-            p.facebook_handle ||
-            (p.mention_keywords?.length ?? 0) > 0,
-        );
+        // Plan ceilings: básico = 24h mínimo, avançado = 12h, enterprise = 6h
+        const planMin = (plan: string | null) =>
+          plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
+
+        const candidates = (profiles ?? []).filter((p) => {
+          const nets: string[] = p.monitored_networks ?? [];
+          const hasSource =
+            (nets.includes("instagram") && p.instagram_handle) ||
+            (nets.includes("twitter") && (p.twitter_handle || (p.mention_keywords?.length ?? 0))) ||
+            (nets.includes("tiktok") && p.tiktok_handle) ||
+            (nets.includes("facebook") && p.facebook_handle);
+          return hasSource;
+        });
+
+        // Filter by cron interval vs last snapshot
+        const eligible: typeof candidates = [];
+        for (const p of candidates) {
+          const interval = Math.max(p.cron_interval_hours ?? 6, planMin(p.plan));
+          const { data: last } = await supabaseAdmin
+            .from("sentiment_snapshots")
+            .select("created_at")
+            .eq("user_id", p.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const lastMs = last?.created_at ? new Date(last.created_at).getTime() : 0;
+          const dueMs = Date.now() - interval * 3600 * 1000 + 5 * 60 * 1000; // 5min slack
+          if (lastMs <= dueMs) eligible.push(p);
+        }
 
         const results: Array<{ user_id: string; collected: number; inserted: number; reason?: string; error?: string }> = [];
         for (const p of eligible) {
