@@ -50,7 +50,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           }
         }
 
-        await supabaseAdmin.rpc("refresh_dashboard_stats").catch(() => {});
+        try { await supabaseAdmin.rpc("refresh_dashboard_stats"); } catch { /* ignore */ }
 
         const totalInserted = results.reduce((s, r) => s + r.inserted, 0);
         return new Response(
