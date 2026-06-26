@@ -18,9 +18,9 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           });
         }
 
-        const lovableKey = process.env.LOVABLE_API_KEY;
-        if (!lovableKey) {
-          return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
+        const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        if (!googleApiKey) {
+          return new Response(JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY missing" }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });
@@ -40,17 +40,30 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           });
         }
 
-        const results: Array<{ user_id: string; inserted: number; reason?: string; error?: string }> = [];
+        const results: Array<{
+          user_id: string;
+          inserted: number;
+          reason?: string;
+          error?: string;
+        }> = [];
         for (const p of profiles ?? []) {
           try {
-            const r = await refreshRadarForUser(supabaseAdmin, p.id, lovableKey);
+            const r = await refreshRadarForUser(supabaseAdmin, p.id, googleApiKey);
             results.push({ user_id: p.id, ...r });
           } catch (e) {
-            results.push({ user_id: p.id, inserted: 0, error: e instanceof Error ? e.message : String(e) });
+            results.push({
+              user_id: p.id,
+              inserted: 0,
+              error: e instanceof Error ? e.message : String(e),
+            });
           }
         }
 
-        try { await supabaseAdmin.rpc("refresh_dashboard_stats"); } catch { /* ignore */ }
+        try {
+          await supabaseAdmin.rpc("refresh_dashboard_stats");
+        } catch {
+          /* ignore */
+        }
 
         const totalInserted = results.reduce((s, r) => s + r.inserted, 0);
         return new Response(

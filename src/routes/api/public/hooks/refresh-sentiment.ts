@@ -18,8 +18,8 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           });
         }
         const apifyToken = process.env.APIFY_TOKEN;
-        const lovableKey = process.env.LOVABLE_API_KEY;
-        if (!apifyToken || !lovableKey) {
+        const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        if (!apifyToken || !googleApiKey) {
           return new Response(JSON.stringify({ error: "missing_secrets" }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
@@ -72,7 +72,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           if (runId) {
             await supabaseAdmin
               .from("cron_run_logs")
-              .update({ status: "error", error: error.message, finished_at: new Date().toISOString() })
+              .update({
+                status: "error",
+                error: error.message,
+                finished_at: new Date().toISOString(),
+              })
               .eq("id", runId);
           }
           return new Response(JSON.stringify({ error: error.message }), {
@@ -117,13 +121,14 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
 
           if (lastMs > dueMs) {
             skipped++;
-            const reason = interval > (p.cron_interval_hours ?? 6) ? "plan_floor" : "within_interval";
+            const reason =
+              interval > (p.cron_interval_hours ?? 6) ? "plan_floor" : "within_interval";
             await logUser(p.id, "skipped", reason, interval, p.plan, null, null);
             continue;
           }
 
           try {
-            const r = await refreshSentimentForUser(supabaseAdmin, p.id, apifyToken, lovableKey);
+            const r = await refreshSentimentForUser(supabaseAdmin, p.id, apifyToken, googleApiKey);
             processed++;
             await logUser(p.id, "processed", r.reason ?? null, interval, p.plan, r.inserted, null);
             results.push({ user_id: p.id, ...r });
@@ -148,7 +153,14 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         }
 
         return new Response(
-          JSON.stringify({ ok: true, run_id: runId, users_total: all.length, users_processed: processed, users_skipped: skipped, results }),
+          JSON.stringify({
+            ok: true,
+            run_id: runId,
+            users_total: all.length,
+            users_processed: processed,
+            users_skipped: skipped,
+            results,
+          }),
           { headers: { "Content-Type": "application/json" } },
         );
       },

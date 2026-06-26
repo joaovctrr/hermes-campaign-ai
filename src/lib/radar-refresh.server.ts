@@ -1,12 +1,12 @@
 import { generateText } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { createGoogleAiProvider } from "./ai-gateway.server";
 
 type Raw = { title: string; link: string; source: string; pubDate?: string; theme: string };
 
 /**
  * Server-only helper. Fetches Google News for each monitored theme,
- * deduplicates against the DB, summarizes via Lovable AI and inserts.
+ * deduplicates against the DB, summarizes via Google AI and inserts.
  * Returns the count of inserted rows. Designed to be called from both
  * the authenticated server function and the pg_cron webhook.
  */
@@ -62,8 +62,8 @@ export async function refreshRadarForUser(
   const novel = all.filter((n) => !existingSet.has(n.link)).slice(0, 12);
   if (!novel.length) return { inserted: 0, reason: "already_fresh" };
 
-  const gateway = createLovableAiGatewayProvider(apiKey);
-  const model = gateway("google/gemini-3-flash-preview");
+  const google = createGoogleAiProvider(apiKey);
+  const model = google("gemini-3-flash-preview");
 
   const prompt = `Você é Informa Ágora, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta"}.
 

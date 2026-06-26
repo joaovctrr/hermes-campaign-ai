@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,11 +65,11 @@ function AuthPage() {
   }
 
   async function handleGoogle() {
-    const r = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/auth",
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin + "/auth" },
     });
-    if (r.error) toast.error(r.error.message ?? "Falha no login com Google");
-    if (!r.redirected && !r.error) navigate({ to: "/dashboard" });
+    if (error) toast.error(error.message ?? "Falha no login com Google");
   }
 
   return (
@@ -86,7 +85,9 @@ function AuthPage() {
           </p>
           <p className="mt-6 text-sm text-sidebar-foreground/70">Manual interno · Informa Ágora</p>
         </div>
-        <div className="text-xs text-sidebar-foreground/60">© Informa Ágora Inteligência Política</div>
+        <div className="text-xs text-sidebar-foreground/60">
+          © Informa Ágora Inteligência Política
+        </div>
       </aside>
 
       <main className="flex items-center justify-center p-8">
@@ -110,7 +111,13 @@ function AuthPage() {
                 </div>
                 <div>
                   <Label htmlFor="password">Senha</Label>
-                  <Input id="password" name="password" type="password" required autoComplete="current-password" />
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}
@@ -148,7 +155,7 @@ function AuthPage() {
           </Button>
 
           <p className="mt-8 text-xs text-muted-foreground text-center">
-            Ao acessar, você concorda com nossos termos e a Política de Uso da Lovable Cloud.
+            Ao acessar, você concorda com nossos termos e nossa Política de Uso.
           </p>
         </div>
       </main>

@@ -7,9 +7,9 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const apifyToken = process.env.APIFY_TOKEN;
-    const lovableKey = process.env.LOVABLE_API_KEY;
+    const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apifyToken) throw new Error("APIFY_TOKEN não configurado");
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY não configurado");
+    if (!googleApiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY não configurado");
 
     // Plan-based cooldown
     const { data: profile } = await context.supabase
@@ -38,7 +38,7 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
     }
 
     const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
-    return refreshSentimentForUser(context.supabase, context.userId, apifyToken, lovableKey);
+    return refreshSentimentForUser(context.supabase, context.userId, apifyToken, googleApiKey);
   });
 
 export const getLatestSnapshot = createServerFn({ method: "GET" })
@@ -111,6 +111,12 @@ export const getManualCooldownStatus = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
     const lastAt = last?.created_at ? new Date(last.created_at).getTime() : 0;
-    const remaining = cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
-    return { plan, cooldownHours: cooldown, remainingMs: remaining, lastAt: last?.created_at ?? null };
+    const remaining =
+      cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
+    return {
+      plan,
+      cooldownHours: cooldown,
+      remainingMs: remaining,
+      lastAt: last?.created_at ?? null,
+    };
   });
