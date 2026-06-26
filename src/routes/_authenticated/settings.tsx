@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
+import { amIAdmin, setMyPlan } from "@/lib/admin.functions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -356,7 +357,7 @@ function SettingsPage() {
             </div>
           </Section>
 
-
+          <AdminDevTools currentPlan={plan} onChanged={refetch} />
 
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</Button>
@@ -385,5 +386,66 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label>{label}</Label>
       {children}
     </div>
+  );
+}
+
+function AdminDevTools({
+  currentPlan,
+  onChanged,
+}: {
+  currentPlan: "basico" | "avancado" | "enterprise";
+  onChanged: () => void;
+}) {
+  const checkAdmin = useServerFn(amIAdmin);
+  const changePlan = useServerFn(setMyPlan);
+  const { data: isAdmin } = useQuery({
+    queryKey: ["am-i-admin"],
+    queryFn: () => checkAdmin(),
+  });
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (!isAdmin) return null;
+
+  const plans: Array<{ value: "basico" | "avancado" | "enterprise"; label: string }> = [
+    { value: "basico", label: "Básico" },
+    { value: "avancado", label: "Avançado" },
+    { value: "enterprise", label: "Enterprise" },
+  ];
+
+  async function pick(plan: "basico" | "avancado" | "enterprise") {
+    setBusy(plan);
+    try {
+      await changePlan({ data: { plan } });
+      toast.success(`Plano alterado para ${plan}.`);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-dashed border-amber-500/40 bg-amber-50/5 p-6 space-y-4">
+      <div>
+        <h2 className="font-serif text-xl">Ferramentas de desenvolvedor</h2>
+        <p className="text-sm text-muted-foreground">
+          Visível apenas para administradores. Plano atual: <Badge variant="secondary">{currentPlan}</Badge>
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {plans.map((p) => (
+          <Button
+            key={p.value}
+            type="button"
+            variant={currentPlan === p.value ? "default" : "outline"}
+            disabled={busy !== null}
+            onClick={() => pick(p.value)}
+          >
+            {busy === p.value ? "Aplicando..." : p.label}
+          </Button>
+        ))}
+      </div>
+    </section>
   );
 }
