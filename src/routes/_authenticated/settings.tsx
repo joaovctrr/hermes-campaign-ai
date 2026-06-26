@@ -357,7 +357,7 @@ function SettingsPage() {
             </div>
           </Section>
 
-
+          <AdminDevTools currentPlan={plan} onChanged={refetch} />
 
           <div className="flex justify-end">
             <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</Button>
