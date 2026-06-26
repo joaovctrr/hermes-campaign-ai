@@ -1,26 +1,42 @@
-## 1. Corrigir erro do `/dashboard`
+# Acesso de administrador para desenvolvimento
 
-**Causa:** `src/lib/insight-feedback.functions.ts` faz `import { createHash } from "crypto"` no topo. O Dashboard importa esse módulo para usar `saveInsightFeedback` / `listMyFeedback`, e o splitter do TanStack só remove o corpo do `.handler()` — imports de topo continuam indo pro bundle do browser, quebrando com "Module 'crypto' has been externalized".
+Objetivo: dar ao seu email (`rb.joaoalves.dev@gmail.com`) poder de admin para alternar livremente entre os planos (`basic`, `advanced`, `enterprise`) e o status de trial, sem precisar passar pelo Stripe durante o desenvolvimento.
 
-**Correção:** remover o import de Node `crypto` e calcular o hash dentro do `.handler()` usando Web Crypto (`globalThis.crypto.subtle.digest`), que funciona tanto no Workers quanto no Node 20. A função `hashRecommendation` exportada (não usada em outro lugar) vira `async` interna do handler.
+## 1. Modelo de roles (seguro)
 
-## 2. Termômetro Social — filtro por rede
+Seguindo o padrão recomendado (roles em tabela separada, nunca no `profiles`):
 
-- Adicionar estado `network` (todas | instagram | twitter | tiktok | facebook) controlado por chips clicáveis nos cards de "Distribuição por rede".
-- Repassar `network` para `listMyMentions` (o backend já suporta o filtro).
-- Chip ativo destacado; clicar de novo limpa o filtro.
-- Filtros de rede e sentimento se combinam.
+- Criar enum `public.app_role` com valores `admin`, `user`.
+- Criar tabela `public.user_roles` (id, user_id → auth.users, role, unique(user_id, role)) com RLS.
+- `GRANT SELECT ON public.user_roles TO authenticated` + `GRANT ALL ... TO service_role`.
+- Policy: usuário autenticado lê apenas as próprias roles.
+- Função `public.has_role(_user_id uuid, _role app_role)` como `SECURITY DEFINER STABLE` com `search_path = public` para evitar recursão em RLS.
+- Seed na migração: inserir role `admin` para o `user_id` correspondente ao email `rb.joaoalves.dev@gmail.com` lido de `auth.users` (idempotente via `ON CONFLICT DO NOTHING`). Se o usuário ainda não existir em `auth.users` no momento da migração, a migração não falha — basta rodar novamente após o primeiro login, ou usar a UI de admin (passo 3) depois.
 
-## 3. Modal do post original ao clicar em "Em resposta a"
+## 2. Server functions de admin
 
-- Trocar o `<a>` atual por um `<button>` que abre um `Dialog` (shadcn).
-- O modal mostra: thumbnail grande, rede + autor, caption completa, data, link "Abrir no <rede>" (target=_blank) usando `parent_post_url`.
-- Mantém comportamento atual de abrir externo como ação secundária.
-- Nada novo no backend — usa os campos `parent_post_*` já retornados por `listMyMentions`.
+Novo arquivo `src/lib/admin.functions.ts`:
 
-## Arquivos tocados
+- `amIAdmin()` — `requireSupabaseAuth`, retorna boolean checando `has_role(userId, 'admin')`.
+- `setMyPlan({ plan, trialDays? })` — `requireSupabaseAuth` + verificação `has_role(userId, 'admin')`; atualiza `profiles.plan` e, opcionalmente, `profiles.trial_ends_at = now() + interval 'N days'` (ou `null` para encerrar trial). Não usa `supabaseAdmin` — opera no próprio perfil via RLS do usuário autenticado.
+- `setMyTrial({ days | endNow })` — mesmo padrão, só mexe em `trial_ends_at`.
 
-- `src/lib/insight-feedback.functions.ts` — remove import `crypto`, hash via Web Crypto dentro do handler.
-- `src/routes/_authenticated/sentiment.tsx` — filtro por rede + modal de post.
+Todas validadas com Zod. Retornam erro 403 se não for admin.
 
-Sem migração de banco. Só frontend + um ajuste cirúrgico em um server function.
+## 3. UI de dev tools no Settings
+
+Em `src/routes/_authenticated/settings.tsx`, adicionar um card **"Ferramentas de desenvolvedor"** que só renderiza quando `amIAdmin()` retorna true:
+
+- Select de plano: Básico / Avançado / Enterprise → chama `setMyPlan`.
+- Botões rápidos de trial: "Iniciar trial 7 dias", "Encerrar trial agora".
+- Badge mostrando plano atual + dias restantes de trial.
+- Após cada ação: `invalidateQueries` para que cooldowns, limites de plano e banner de trial reflitam imediatamente.
+
+Para usuários comuns o card simplesmente não aparece — zero impacto visual ou de segurança.
+
+## Detalhes técnicos
+
+- Migração única que cria enum, tabela, grants, RLS, policy, função `has_role` e faz o seed do admin via `INSERT ... SELECT id FROM auth.users WHERE email = 'rb.joaoalves.dev@gmail.com' ON CONFLICT DO NOTHING`.
+- `has_role` precisa ser `SECURITY DEFINER` (única exceção justificada — é o padrão Supabase para evitar recursão em RLS) com `search_path` fixo.
+- Nenhum uso de `supabaseAdmin` no client path; tudo passa por `requireSupabaseAuth`.
+- Sem mudança no fluxo de Stripe/trial em produção: a UI de override é puramente para admins.
