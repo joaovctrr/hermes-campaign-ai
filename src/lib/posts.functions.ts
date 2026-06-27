@@ -23,18 +23,23 @@ export const generatePost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => GenerateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY ausente");
+    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
     const [{ data: profile }, { data: news }] = await Promise.all([
       context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle(),
-      context.supabase.from("news_items").select("*").eq("id", data.news_item_id).eq("user_id", context.userId).maybeSingle(),
+      context.supabase
+        .from("news_items")
+        .select("*")
+        .eq("id", data.news_item_id)
+        .eq("user_id", context.userId)
+        .maybeSingle(),
     ]);
     if (!news) throw new Error("Notícia não encontrada.");
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const { createGoogleAiProvider } = await import("./ai-gateway.server");
+    const google = createGoogleAiProvider(key);
+    const model = google("gemini-3-flash-preview");
 
     const system = `Você é Informa Ágora, estrategista de comunicação política de elite. Escreve em PT-BR brasileiro, com clareza institucional e impacto. NUNCA inventa fatos: trabalha apenas com o que está na notícia. Adapta o tom à persona do candidato. SEMPRE inclui a frase "Conteúdo produzido com auxílio de IA." ao final, em linha separada.`;
 

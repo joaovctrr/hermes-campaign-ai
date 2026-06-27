@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { createGoogleAiProvider } from "./ai-gateway.server";
 
 type Bucket = { positivo: number; neutro: number; negativo: number; total: number };
 
@@ -95,7 +95,10 @@ export const getMyInsights = createServerFn({ method: "GET" })
     const prior = series.slice(0, 6);
     const priorNegShare =
       prior.reduce((a, s) => a + s.negativo, 0) /
-      Math.max(1, prior.reduce((a, s) => a + s.positivo + s.neutro + s.negativo, 0));
+      Math.max(
+        1,
+        prior.reduce((a, s) => a + s.positivo + s.neutro + s.negativo, 0),
+      );
     const todayNegShare = bucket24.total ? bucket24.negativo / bucket24.total : 0;
     const trend: "piorando" | "estavel" | "melhorando" =
       todayNegShare > priorNegShare + 0.1
@@ -112,10 +115,10 @@ export const getMyInsights = createServerFn({ method: "GET" })
       .map(([theme, count]) => ({ theme, count }));
 
     let recommendations: string[] = [];
-    const lovableKey = process.env.LOVABLE_API_KEY;
-    if (lovableKey && (n7.length || m1.length)) {
+    const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (googleApiKey && (n7.length || m1.length)) {
       try {
-        const provider = createLovableAiGatewayProvider(lovableKey);
+        const google = createGoogleAiProvider(googleApiKey);
         const sampleNegatives = m1
           .filter((m) => m.sentiment === "negativo")
           .slice(0, 6)
@@ -127,8 +130,16 @@ export const getMyInsights = createServerFn({ method: "GET" })
           .map((n) => `- [${n.urgency}] ${n.title}`)
           .join("\n");
 
-        const liked = fb.filter((f) => f.useful).slice(0, 6).map((f) => `- ${f.recommendation_text}`).join("\n");
-        const disliked = fb.filter((f) => !f.useful).slice(0, 10).map((f) => `- ${f.recommendation_text}`).join("\n");
+        const liked = fb
+          .filter((f) => f.useful)
+          .slice(0, 6)
+          .map((f) => `- ${f.recommendation_text}`)
+          .join("\n");
+        const disliked = fb
+          .filter((f) => !f.useful)
+          .slice(0, 10)
+          .map((f) => `- ${f.recommendation_text}`)
+          .join("\n");
 
         const prompt = `Você é um estrategista de comunicação política. Devolva 3 recomendações práticas de resposta para as próximas 48h, no formato JSON: {"recs":["...","...","..."]}. Frases curtas (máx 180 caracteres), em português, tom institucional.
 
@@ -141,7 +152,7 @@ Críticas recentes:
 ${sampleNegatives || "n/d"}
 ${liked ? `\nRecomendações que o usuário marcou como ÚTEIS (siga este estilo/abordagem):\n${liked}\n` : ""}${disliked ? `\nRecomendações marcadas como NÃO ÚTEIS — NÃO repita esse tom, conteúdo ou abordagem:\n${disliked}\n` : ""}`;
         const { text } = await generateText({
-          model: provider.chatModel("google/gemini-2.5-flash"),
+          model: google("gemini-2.5-flash"),
           prompt,
         });
         const match = text.match(/\{[\s\S]*\}/);

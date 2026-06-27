@@ -17,6 +17,7 @@ import {
 } from "@/lib/sentiment.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { formatCooldownRemaining, planLabel } from "@/lib/plan-limits";
+import { proxiedImageUrl } from "@/lib/media-proxy";
 
 export const Route = createFileRoute("/_authenticated/sentiment")({
   component: SentimentPage,
@@ -208,6 +209,7 @@ function SentimentPage() {
           ) : (
             (mentions ?? []).map((m) => {
               const Icon = NETWORK_ICON[m.network as keyof typeof NETWORK_ICON];
+              const previewImage = proxiedImageUrl(m.parent_post_thumbnail);
               const sentColor =
                 m.sentiment === "positivo"
                   ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
@@ -236,16 +238,16 @@ function SentimentPage() {
                           network: m.network,
                           url: m.parent_post_url,
                           caption: m.parent_post_caption,
-                          thumbnail: m.parent_post_thumbnail,
+                          thumbnail: previewImage,
                           posted_at: m.posted_at,
                           author: m.author,
                         })
                       }
                       className="mt-3 flex w-full gap-3 rounded-md border border-border bg-muted/30 p-2.5 text-left hover:bg-muted/60 transition"
                     >
-                      {m.parent_post_thumbnail && (
+                      {previewImage && (
                         <img
-                          src={m.parent_post_thumbnail}
+                          src={previewImage}
                           alt=""
                           className="h-14 w-14 rounded object-cover shrink-0"
                           loading="lazy"

@@ -21,15 +21,22 @@ export const getMyDashboardStats = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase.rpc("get_my_dashboard_stats");
     if (error) throw new Error(error.message);
-    const row = (data as Array<{ total: number; last_24h: number; critical_24h: number; last_news_at: string | null }> | null)?.[0];
+    const row = (
+      data as Array<{
+        total: number;
+        last_24h: number;
+        critical_24h: number;
+        last_news_at: string | null;
+      }> | null
+    )?.[0];
     return row ?? { total: 0, last_24h: 0, critical_24h: 0, last_news_at: null };
   });
 
 export const refreshRadar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY ausente");
+    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
     // Plan cooldown
     const { data: profile } = await context.supabase
@@ -68,7 +75,9 @@ export const refreshRadar = createServerFn({ method: "POST" })
     };
     return {
       inserted: result.inserted,
-      message: result.reason ? messages[result.reason] ?? "" : `${result.inserted} novas notícias analisadas.`,
+      message: result.reason
+        ? (messages[result.reason] ?? "")
+        : `${result.inserted} novas notícias analisadas.`,
     };
   });
 
@@ -90,7 +99,8 @@ export const getRadarCooldownStatus = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
     const lastAt = last?.created_at ? new Date(last.created_at).getTime() : 0;
-    const remaining = cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
+    const remaining =
+      cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
     return { plan, cooldownHours: cooldown, remainingMs: remaining };
   });
 

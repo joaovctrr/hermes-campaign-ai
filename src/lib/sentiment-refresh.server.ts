@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { createGoogleAiProvider } from "./ai-gateway.server";
 import {
   fetchInstagramMentions,
   fetchTwitterMentions,
@@ -13,32 +13,48 @@ type Classified = RawMention & { sentiment: "positivo" | "neutro" | "negativo"; 
 
 /**
  * Server-only. Scrapes via Apify for each configured network, classifies
- * sentiment with Lovable AI in a single batch, upserts mentions and writes
+ * sentiment with Google AI in a single batch, upserts mentions and writes
  * a snapshot row. Returns aggregate counters for the caller.
  */
 export async function refreshSentimentForUser(
   supabase: SupabaseClient,
   userId: string,
   apifyToken: string,
-  lovableKey: string,
+  googleApiKey: string,
 ): Promise<{ collected: number; inserted: number; snapshot_id?: string; reason?: string }> {
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
-    .select("instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks")
+    .select(
+      "instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks",
+    )
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
   if (!profile) return { collected: 0, inserted: 0, reason: "no_profile" };
 
-  const nets: string[] = profile.monitored_networks ?? ["instagram", "twitter", "tiktok", "facebook"];
+  const nets: string[] = profile.monitored_networks ?? [
+    "instagram",
+    "twitter",
+    "tiktok",
+    "facebook",
+  ];
   const on = (n: string) => nets.includes(n);
 
   const tasks: Array<Promise<RawMention[]>> = [];
-  if (on("instagram") && profile.instagram_handle) tasks.push(fetchInstagramMentions(profile.instagram_handle, apifyToken));
+  if (on("instagram") && profile.instagram_handle)
+    tasks.push(fetchInstagramMentions(profile.instagram_handle, apifyToken));
   if (on("twitter") && (profile.twitter_handle || (profile.mention_keywords?.length ?? 0)))
-    tasks.push(fetchTwitterMentions(profile.twitter_handle ?? null, profile.mention_keywords ?? [], apifyToken));
-  if (on("tiktok") && profile.tiktok_handle) tasks.push(fetchTiktokMentions(profile.tiktok_handle, apifyToken));
-  if (on("facebook") && profile.facebook_handle) tasks.push(fetchFacebookMentions(profile.facebook_handle, apifyToken));
+    tasks.push(
+      fetchTwitterMentions(
+        profile.twitter_handle ?? null,
+        profile.mention_keywords ?? [],
+        apifyToken,
+      ),
+    );
+  if (on("tiktok") && profile.tiktok_handle)
+    tasks.push(fetchTiktokMentions(profile.tiktok_handle, apifyToken));
+  if (on("facebook") && profile.facebook_handle)
+    tasks.push(fetchFacebookMentions(profile.facebook_handle, apifyToken));
 
   if (!tasks.length) return { collected: 0, inserted: 0, reason: "no_networks_selected" };
 
@@ -63,7 +79,7 @@ export async function refreshSentimentForUser(
   }
 
   // Classify in one batch
-  const classified = await classifyBatch(novel, lovableKey);
+  const classified = await classifyBatch(novel, googleApiKey);
 
   const rows = classified.map((m) => ({
     user_id: userId,
@@ -96,9 +112,9 @@ function safeDate(s: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-async function classifyBatch(items: RawMention[], lovableKey: string): Promise<Classified[]> {
-  const gateway = createLovableAiGatewayProvider(lovableKey);
-  const model = gateway("google/gemini-3-flash-preview");
+async function classifyBatch(items: RawMention[], googleApiKey: string): Promise<Classified[]> {
+  const google = createGoogleAiProvider(googleApiKey);
+  const model = google("gemini-3-flash-preview");
 
   const prompt = `Você é um analista de sentimento político em PT-BR. Para CADA item retorne SOMENTE um JSON array (sem markdown), com objetos {"i": <indice>, "s": "positivo"|"neutro"|"negativo", "score": <0..1 confiança>}.
 Critério:
@@ -121,11 +137,18 @@ ${items.map((m, i) => `${i}. [${m.network}] ${m.content.slice(0, 300)}`).join("\
   return items.map((m, i) => {
     const p = byIdx.get(i);
     const s = (p?.s as Classified["sentiment"]) || "neutro";
-    return { ...m, sentiment: ["positivo", "neutro", "negativo"].includes(s) ? s : "neutro", score: p?.score ?? 0.5 };
+    return {
+      ...m,
+      sentiment: ["positivo", "neutro", "negativo"].includes(s) ? s : "neutro",
+      score: p?.score ?? 0.5,
+    };
   });
 }
 
-async function writeSnapshot(supabase: SupabaseClient, userId: string): Promise<string | undefined> {
+async function writeSnapshot(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | undefined> {
   const windowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: rows } = await supabase
     .from("social_mentions")
