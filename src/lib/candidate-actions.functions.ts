@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  replaceLegislativeMemoryChunks,
+  searchLegislativeMemoryChunks,
+} from "@/lib/legislative-memory.server";
 
 const OptionalText = z
   .string()
@@ -65,6 +69,7 @@ const DocumentUploadSchema = z.object({
 });
 
 const CamaraSearchSchema = z.object({
+  mode: z.enum(["theme", "author", "number"]).default("theme"),
   query: z.string().trim().min(2).max(120),
   year: z
     .string()
@@ -115,6 +120,7 @@ export const createCandidateAction = createServerFn({ method: "POST" })
       .single();
 
     if (error) throw new Error(error.message);
+    await syncCandidateActionMemory(context.supabase, context.userId, inserted);
     return inserted;
   });
 
@@ -139,6 +145,7 @@ export const updateCandidateAction = createServerFn({ method: "POST" })
       .single();
 
     if (error) throw new Error(error.message);
+    await syncCandidateActionMemory(context.supabase, context.userId, updated);
     return updated;
   });
 
@@ -160,24 +167,6 @@ export const searchCamaraPropositions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => CamaraSearchSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const params = new URLSearchParams({
-      keywords: data.query,
-      ordem: "DESC",
-      ordenarPor: "id",
-      itens: String(data.limit),
-    });
-    if (data.year) params.set("ano", data.year);
-
-    const response = await fetch(
-      `https://dadosabertos.camara.leg.br/api/v2/proposicoes?${params.toString()}`,
-      { headers: { accept: "application/json" } },
-    );
-
-    if (!response.ok) {
-      throw new Error("Não foi possível consultar a API da Câmara dos Deputados.");
-    }
-
-    const payload = (await response.json()) as { dados?: CamaraPropositionSummary[] };
     const { data: profile } = await context.supabase
       .from("profiles")
       .select("full_name")
@@ -185,9 +174,15 @@ export const searchCamaraPropositions = createServerFn({ method: "GET" })
       .maybeSingle();
 
     const candidateName = profile?.full_name ?? "";
+    const propositions =
+      data.mode === "number"
+        ? await searchCamaraPropositionsByNumber(data.query, data.year, data.limit)
+        : data.mode === "author"
+          ? await searchCamaraPropositionsByAuthor(data.query, data.year, data.limit)
+          : await searchCamaraPropositionsByTheme(data.query, data.year, data.limit);
 
     return Promise.all(
-      (payload.dados ?? []).map(async (item) => {
+      propositions.map(async (item) => {
         const authors = await fetchCamaraAuthors(item.id);
         return {
           id: String(item.id),
@@ -252,6 +247,7 @@ export const importCamaraProposition = createServerFn({ method: "POST" })
       .single();
 
     if (error) throw new Error(error.message);
+    await syncCandidateActionMemory(context.supabase, context.userId, inserted, "camara");
     return inserted;
   });
 
@@ -272,7 +268,11 @@ export const uploadLegislativeDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => DocumentUploadSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const parsed = extractTextFromUpload(data.file_name, data.mime_type ?? "", data.content_base64);
+    const parsed = await extractTextFromUpload(
+      data.file_name,
+      data.mime_type ?? "",
+      data.content_base64,
+    );
     const chunks = chunkText(parsed.text);
 
     if (!chunks.length) {
@@ -306,6 +306,25 @@ export const uploadLegislativeDocument = createServerFn({ method: "POST" })
       .from("legislative_document_chunks")
       .insert(rows);
     if (chunkError) throw new Error(chunkError.message);
+
+    await replaceLegislativeMemoryChunks(
+      context.supabase,
+      context.userId,
+      { document_id: document.id },
+      [
+        {
+          source_type: "document",
+          title: data.file_name,
+          content: parsed.text,
+          document_id: document.id,
+          metadata: {
+            file_name: data.file_name,
+            mime_type: data.mime_type,
+            size_bytes: data.size_bytes,
+          },
+        },
+      ],
+    );
 
     return document;
   });
@@ -358,25 +377,20 @@ export const searchLegislativeMemory = createServerFn({ method: "GET" })
 
     if (actionError) throw new Error(actionError.message);
 
-    const { data: chunks, error: chunkError } = await context.supabase
-      .from("legislative_document_chunks")
-      .select("id, document_id, chunk_index, content, legislative_documents(file_name)")
-      .eq("user_id", context.userId)
-      .textSearch("content_search", actionQuery, {
-        type: "plain",
-        config: "portuguese",
-      })
-      .limit(data.limit);
-
-    if (chunkError) throw new Error(chunkError.message);
+    const chunks = await searchLegislativeMemoryChunks(
+      context.supabase,
+      context.userId,
+      data.query,
+      data.limit,
+    );
 
     return {
       actions: actions ?? [],
-      chunks: chunks ?? [],
+      chunks,
     };
   });
 
-function extractTextFromUpload(fileName: string, mimeType: string, contentBase64: string) {
+async function extractTextFromUpload(fileName: string, mimeType: string, contentBase64: string) {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
   const binary = Buffer.from(contentBase64, "base64");
 
@@ -387,10 +401,10 @@ function extractTextFromUpload(fileName: string, mimeType: string, contentBase64
     return { text: normalizeExtractedText(binary.toString("utf8")) };
   }
 
-  if (extension === "pdf") {
-    throw new Error(
-      "PDF ainda não é processado nesta versão. Envie TXT, Markdown, CSV, JSON ou HTML.",
-    );
+  if (extension === "pdf" || mimeType === "application/pdf") {
+    const pdfParse = (await import("pdf-parse")).default;
+    const result = await pdfParse(binary);
+    return { text: normalizeExtractedText(result.text ?? "") };
   }
 
   if (["doc", "docx"].includes(extension)) {
@@ -399,7 +413,7 @@ function extractTextFromUpload(fileName: string, mimeType: string, contentBase64
     );
   }
 
-  throw new Error("Formato não suportado. Envie TXT, Markdown, CSV, JSON ou HTML.");
+  throw new Error("Formato não suportado. Envie PDF, TXT, Markdown, CSV, JSON ou HTML.");
 }
 
 function normalizeExtractedText(text: string) {
@@ -443,6 +457,13 @@ type CamaraAuthor = {
   tipo?: string;
 };
 
+type CamaraDeputy = {
+  id: number | string;
+  nome?: string;
+  siglaPartido?: string;
+  siglaUf?: string;
+};
+
 type CamaraPropositionDetail = CamaraPropositionSummary & {
   dataApresentacao?: string;
   ementaDetalhada?: string;
@@ -469,6 +490,124 @@ function camaraActionType(type?: string) {
   if (normalized.includes("PEC")) return "Emenda";
   if (normalized.includes("REQ")) return "Requerimento";
   return "Proposição";
+}
+
+async function searchCamaraPropositionsByTheme(query: string, year: string | null, limit: number) {
+  const params = new URLSearchParams({
+    keywords: query,
+    ordem: "DESC",
+    ordenarPor: "id",
+    itens: String(limit),
+  });
+  if (year) params.set("ano", year);
+  return fetchCamaraPropositionList(params);
+}
+
+async function searchCamaraPropositionsByAuthor(query: string, year: string | null, limit: number) {
+  const seen = new Set<string>();
+  const propositions: CamaraPropositionSummary[] = [];
+
+  const addRows = (rows: CamaraPropositionSummary[]) => {
+    for (const row of rows) {
+      const id = String(row.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      propositions.push(row);
+      if (propositions.length >= limit) return true;
+    }
+    return false;
+  };
+
+  const deputyParams = new URLSearchParams({
+    nome: query,
+    ordem: "ASC",
+    ordenarPor: "nome",
+    itens: "5",
+  });
+
+  const deputiesResponse = await fetch(
+    `https://dadosabertos.camara.leg.br/api/v2/deputados?${deputyParams.toString()}`,
+    { headers: { accept: "application/json" } },
+  );
+
+  if (!deputiesResponse.ok) {
+    throw new Error("Não foi possível consultar deputados/autores na API da Câmara.");
+  }
+
+  const deputiesPayload = (await deputiesResponse.json()) as { dados?: CamaraDeputy[] };
+  const deputies = deputiesPayload.dados ?? [];
+
+  for (const deputy of deputies) {
+    const params = new URLSearchParams({
+      idDeputadoAutor: String(deputy.id),
+      ordem: "DESC",
+      ordenarPor: "id",
+      itens: String(limit),
+    });
+    if (year) params.set("ano", year);
+
+    const rows = await fetchCamaraPropositionList(params);
+    if (addRows(rows)) return propositions;
+  }
+
+  for (const authorName of getAuthorSearchVariants(query)) {
+    const params = new URLSearchParams({
+      autor: authorName,
+      ordem: "DESC",
+      ordenarPor: "id",
+      itens: String(limit),
+    });
+    if (year) params.set("ano", year);
+
+    const rows = await fetchCamaraPropositionList(params);
+    if (addRows(rows)) return propositions;
+  }
+
+  if (!propositions.length) {
+    for (const keyword of getAuthorSearchVariants(query)) {
+      const params = new URLSearchParams({
+        keywords: keyword,
+        ordem: "DESC",
+        ordenarPor: "id",
+        itens: String(limit),
+      });
+      if (year) params.set("ano", year);
+
+      const rows = await fetchCamaraPropositionList(params);
+      if (addRows(rows)) return propositions;
+    }
+  }
+
+  return propositions;
+}
+
+async function searchCamaraPropositionsByNumber(query: string, year: string | null, limit: number) {
+  const parsed = parsePropositionNumber(query, year);
+  const params = new URLSearchParams({
+    ordem: "DESC",
+    ordenarPor: "id",
+    itens: String(limit),
+  });
+
+  if (parsed.type) params.set("siglaTipo", parsed.type);
+  if (parsed.number) params.set("numero", parsed.number);
+  if (parsed.year) params.set("ano", parsed.year);
+
+  return fetchCamaraPropositionList(params);
+}
+
+async function fetchCamaraPropositionList(params: URLSearchParams) {
+  const response = await fetch(
+    `https://dadosabertos.camara.leg.br/api/v2/proposicoes?${params.toString()}`,
+    { headers: { accept: "application/json" } },
+  );
+
+  if (!response.ok) {
+    throw new Error("Não foi possível consultar proposições na API da Câmara dos Deputados.");
+  }
+
+  const payload = (await response.json()) as { dados?: CamaraPropositionSummary[] };
+  return payload.dados ?? [];
 }
 
 async function fetchCamaraAuthors(propositionId: number | string) {
@@ -544,14 +683,118 @@ function normalizeComparable(value: string) {
     .trim();
 }
 
+function getAuthorSearchVariants(query: string) {
+  const trimmed = query.trim();
+  const normalized = normalizeComparable(trimmed);
+  const variants = new Set<string>([trimmed]);
+
+  if (
+    normalized.includes("subtenente gonzaga") ||
+    (normalized.includes("luiz") &&
+      normalized.includes("gonzaga") &&
+      normalized.includes("ribeiro"))
+  ) {
+    variants.add("Subtenente Gonzaga");
+    variants.add("Luiz Gonzaga Ribeiro");
+    variants.add("Luiz Gonzaga");
+    variants.add("Gonzaga");
+  }
+
+  const tokens = trimmed.split(/\s+/).filter((token) => token.length >= 3);
+  if (tokens.length >= 2) variants.add(`${tokens[0]} ${tokens.at(-1)}`);
+  if (tokens.length >= 1) variants.add(tokens.at(-1) ?? trimmed);
+
+  return [...variants].filter(Boolean).slice(0, 6);
+}
+
+function parsePropositionNumber(query: string, fallbackYear: string | null) {
+  const normalized = query.trim().toUpperCase();
+  const type = normalized.match(/\b(PLP|PL|PEC|PDL|REQ|PRC|MSC|MPV|INC|RIC)\b/)?.[1] ?? null;
+  const number = normalized.match(/\b(\d{1,6})\b/)?.[1] ?? "";
+  const year = normalized.match(/\b(19|20)\d{2}\b/)?.[0] ?? fallbackYear ?? null;
+
+  return { type, number, year };
+}
+
 function namesLookRelated(candidate: string, target: string) {
   if (!candidate || !target) return false;
   if (target.includes(candidate) || candidate.includes(target)) return true;
 
-  const candidateTokens = candidate.split(" ").filter((token) => token.length >= 3);
+  const candidateTokens = expandComparableName(candidate);
   const targetTokens = new Set(target.split(" ").filter((token) => token.length >= 3));
   const shared = candidateTokens.filter((token) => targetTokens.has(token));
   const lastName = candidateTokens.at(-1);
 
   return shared.length >= 2 && Boolean(lastName && targetTokens.has(lastName));
+}
+
+function expandComparableName(name: string) {
+  const tokens = name.split(" ").filter((token) => token.length >= 3);
+
+  if (tokens.includes("subtenente") && tokens.includes("gonzaga")) {
+    return [...new Set([...tokens, "luiz", "ribeiro"])];
+  }
+
+  if (tokens.includes("luiz") && tokens.includes("gonzaga") && tokens.includes("ribeiro")) {
+    return [...new Set([...tokens, "subtenente"])];
+  }
+
+  return tokens;
+}
+
+async function syncCandidateActionMemory(
+  supabase: Parameters<typeof replaceLegislativeMemoryChunks>[0],
+  userId: string,
+  action: {
+    id: string;
+    action_type: string | null;
+    title: string;
+    description: string | null;
+    theme: string | null;
+    source: string | null;
+    source_url: string | null;
+    action_date: string | null;
+    legislature: string | null;
+    keywords: string[] | null;
+  },
+  forcedSourceType?: "manual" | "camara",
+) {
+  const sourceType =
+    forcedSourceType ??
+    (action.source?.toLowerCase().includes("câmara") ||
+    action.source?.toLowerCase().includes("camara")
+      ? "camara"
+      : "manual");
+
+  const content = [
+    `Tipo: ${action.action_type ?? "Registro"}`,
+    `Título: ${action.title}`,
+    action.theme ? `Tema: ${action.theme}` : null,
+    action.description ? `Descrição: ${action.description}` : null,
+    action.action_date ? `Data: ${action.action_date}` : null,
+    action.legislature ? `Legislatura/ano: ${action.legislature}` : null,
+    action.source ? `Fonte: ${action.source}` : null,
+    action.source_url ? `URL: ${action.source_url}` : null,
+    action.keywords?.length ? `Palavras-chave: ${action.keywords.join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await replaceLegislativeMemoryChunks(supabase, userId, { action_id: action.id }, [
+    {
+      source_type: sourceType,
+      title: action.title,
+      content,
+      action_id: action.id,
+      metadata: {
+        action_type: action.action_type,
+        theme: action.theme,
+        source: action.source,
+        source_url: action.source_url,
+        action_date: action.action_date,
+        legislature: action.legislature,
+        keywords: action.keywords ?? [],
+      },
+    },
+  ]);
 }

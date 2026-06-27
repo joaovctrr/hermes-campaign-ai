@@ -87,6 +87,7 @@ function HistoryPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [keywordInput, setKeywordInput] = useState("");
   const [themeFilter, setThemeFilter] = useState("all");
+  const [camaraSearchMode, setCamaraSearchMode] = useState<"theme" | "author" | "number">("author");
   const [camaraQuery, setCamaraQuery] = useState("");
   const [camaraYear, setCamaraYear] = useState("");
   const [camaraTheme, setCamaraTheme] = useState("");
@@ -157,6 +158,7 @@ function HistoryPage() {
     mutationFn: () =>
       searchCamara({
         data: {
+          mode: camaraSearchMode,
           query: camaraQuery,
           year: camaraYear,
           limit: 10,
@@ -355,13 +357,56 @@ function HistoryPage() {
               </div>
               <h2 className="mt-1 font-serif text-2xl">API da Câmara</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Busque proposições nos Dados Abertos da Câmara e importe como registros da memória.
+                Busque por autor ou por assunto nos Dados Abertos da Câmara e importe leis, projetos
+                e ementas para a memória.
               </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setCamaraSearchMode("author")}
+                className={`rounded-md px-3 py-2 text-sm transition ${
+                  camaraSearchMode === "author"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Por autor
+              </button>
+              <button
+                type="button"
+                onClick={() => setCamaraSearchMode("number")}
+                className={`rounded-md px-3 py-2 text-sm transition ${
+                  camaraSearchMode === "number"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Por número
+              </button>
+              <button
+                type="button"
+                onClick={() => setCamaraSearchMode("theme")}
+                className={`rounded-md px-3 py-2 text-sm transition ${
+                  camaraSearchMode === "theme"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Por assunto
+              </button>
             </div>
 
             <div className="grid sm:grid-cols-[1fr_96px] gap-3">
               <Input
-                placeholder="Ex: segurança pública"
+                placeholder={
+                  camaraSearchMode === "author"
+                    ? "Ex: Subtenente Gonzaga"
+                    : camaraSearchMode === "number"
+                      ? "Ex: PL 7645/2014"
+                      : "Ex: segurança pública"
+                }
                 value={camaraQuery}
                 onChange={(e) => setCamaraQuery(e.target.value)}
               />
@@ -383,8 +428,20 @@ function HistoryPage() {
               onClick={() => camaraSearchMutation.mutate()}
               className="w-full"
             >
-              {camaraSearchMutation.isPending ? "Consultando..." : "Buscar na Câmara"}
+              {camaraSearchMutation.isPending
+                ? "Consultando..."
+                : camaraSearchMode === "author"
+                  ? "Buscar autoria na Câmara"
+                  : camaraSearchMode === "number"
+                    ? "Buscar projeto na Câmara"
+                    : "Buscar assunto na Câmara"}
             </Button>
+
+            {camaraSearchMutation.isSuccess && (camaraSearchMutation.data ?? []).length === 0 && (
+              <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                Nenhuma proposição encontrada para essa busca.
+              </p>
+            )}
 
             {(camaraSearchMutation.data ?? []).length > 0 && (
               <div className="space-y-3">
@@ -431,15 +488,15 @@ function HistoryPage() {
               </div>
               <h2 className="mt-1 font-serif text-2xl">Arquivos de aprendizado</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Envie documentos próprios para a IA aprender o histórico do mandato. Aceita TXT,
-                Markdown, CSV, JSON e HTML.
+                Envie documentos próprios para a IA aprender o histórico do mandato. Aceita PDF,
+                TXT, Markdown, CSV, JSON e HTML.
               </p>
             </div>
 
             <Input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.markdown,.csv,.json,.html,.htm,text/*"
+              accept=".pdf,.txt,.md,.markdown,.csv,.json,.html,.htm,application/pdf,text/*"
               onChange={handleFileChange}
               disabled={uploadMutation.isPending}
             />
