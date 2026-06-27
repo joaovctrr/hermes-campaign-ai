@@ -19,6 +19,7 @@ import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/l
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio.index'
+import { Route as ApiMediaImageRouteImport } from './routes/api/media/image'
 import { Route as AuthenticatedStudioIdRouteImport } from './routes/_authenticated/studio.$id'
 import { Route as ApiPublicHooksRefreshSentimentRouteImport } from './routes/api/public/hooks/refresh-sentiment'
 import { Route as ApiPublicHooksRefreshRadarRouteImport } from './routes/api/public/hooks/refresh-radar'
@@ -73,6 +74,11 @@ const AuthenticatedStudioIndexRoute =
     path: '/studio/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiMediaImageRoute = ApiMediaImageRouteImport.update({
+  id: '/api/media/image',
+  path: '/api/media/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedStudioIdRoute = AuthenticatedStudioIdRouteImport.update({
   id: '/studio/$id',
   path: '/studio/$id',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
+  '/api/media/image': typeof ApiMediaImageRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
+  '/api/media/image': typeof ApiMediaImageRoute
   '/studio': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_authenticated/sentiment': typeof AuthenticatedSentimentRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio/$id': typeof AuthenticatedStudioIdRoute
+  '/api/media/image': typeof ApiMediaImageRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/sentiment'
     | '/settings'
     | '/studio/$id'
+    | '/api/media/image'
     | '/studio/'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/sentiment'
     | '/settings'
     | '/studio/$id'
+    | '/api/media/image'
     | '/studio'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sentiment'
     | '/_authenticated/settings'
     | '/_authenticated/studio/$id'
+    | '/api/media/image'
     | '/_authenticated/studio/'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
@@ -185,6 +197,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiMediaImageRoute: typeof ApiMediaImageRoute
   ApiPublicHooksRefreshRadarRoute: typeof ApiPublicHooksRefreshRadarRoute
   ApiPublicHooksRefreshSentimentRoute: typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/media/image': {
+      id: '/api/media/image'
+      path: '/api/media/image'
+      fullPath: '/api/media/image'
+      preLoaderRoute: typeof ApiMediaImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/studio/$id': {
       id: '/_authenticated/studio/$id'
       path: '/studio/$id'
@@ -314,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiMediaImageRoute: ApiMediaImageRoute,
   ApiPublicHooksRefreshRadarRoute: ApiPublicHooksRefreshRadarRoute,
   ApiPublicHooksRefreshSentimentRoute: ApiPublicHooksRefreshSentimentRoute,
 }
