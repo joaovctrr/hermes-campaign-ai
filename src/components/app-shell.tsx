@@ -17,16 +17,21 @@ import { Button } from "@/components/ui/button";
 
 const NAV = [
   { to: "/dashboard", label: "Centro de Comando", icon: LayoutDashboard },
-  { to: "/radar", label: "Radar de NotÃ­cias", icon: Newspaper },
-  { to: "/studio", label: "EstÃºdio de CriaÃ§Ã£o", icon: Sparkles },
+  { to: "/radar", label: "Radar de Notícias", icon: Newspaper },
+  { to: "/studio", label: "Estúdio de Criação", icon: Sparkles },
   { to: "/library", label: "Biblioteca", icon: Library },
-  { to: "/history", label: "MemÃ³ria Legislativa", icon: BookOpenCheck },
-  { to: "/sentiment", label: "TermÃ´metro Social", icon: BarChart3 },
+  { to: "/history", label: "Memória Legislativa", icon: BookOpenCheck },
+  { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
   { to: "/logs", label: "Logs de coleta", icon: ScrollText },
-  { to: "/settings", label: "ConfiguraÃ§Ãµes", icon: Settings },
+  { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
-export function AppShell({ children, title, subtitle, actions }: {
+export function AppShell({
+  children,
+  title,
+  subtitle,
+  actions,
+}: {
   children: ReactNode;
   title: string;
   subtitle?: string;
@@ -45,13 +50,18 @@ export function AppShell({ children, title, subtitle, actions }: {
       <aside className="w-64 shrink-0 bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="p-6 border-b border-sidebar-border/40">
           <Link to="/dashboard" className="flex items-center gap-2">
-            <img src={logo} alt="Informa Ãgora" className="h-11 w-auto object-contain brightness-0 invert" />
-            <span className="font-serif text-xl">Informa Ãgora</span>
+            <img
+              src={logo}
+              alt="Informa Ágora"
+              className="h-11 w-auto object-contain brightness-0 invert"
+            />
+            <span className="font-serif text-xl">Informa Ágora</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {NAV.map((item) => {
-            const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
+            const active =
+              pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}
@@ -95,4 +105,3 @@ export function AppShell({ children, title, subtitle, actions }: {
 }
 
 export { Button };
-

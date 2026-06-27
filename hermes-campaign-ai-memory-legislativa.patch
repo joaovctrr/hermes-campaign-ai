@@ -26,7 +26,7 @@ index 2d1f035..235e53f 100644
 +  { to: "/history", label: "Memória Legislativa", icon: BookOpenCheck },
    { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
    { to: "/logs", label: "Logs de coleta", icon: ScrollText },
-   { to: "/settings", label: "Configurações", icon: Settings },]
+   { to: "/settings", label: "Configurações", icon: Settings },
 diff --git a/src/lib/candidate-actions.functions.ts b/src/lib/candidate-actions.functions.ts
 new file mode 100644 
 index 0000000..a8f8b91

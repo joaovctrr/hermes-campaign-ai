@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const FormatSchema = z.enum(["instagram", "tiktok", "twitter"]);
 
@@ -37,11 +39,17 @@ export const generatePost = createServerFn({ method: "POST" })
     ]);
     if (!news) throw new Error("Notícia não encontrada.");
 
+    const memoryContext = await getLegislativeMemoryContext(
+      context.supabase,
+      context.userId,
+      [news.title, news.theme, news.summary].filter(Boolean).join(" "),
+    );
+
     const { createGoogleAiProvider } = await import("./ai-gateway.server");
     const google = createGoogleAiProvider(key);
     const model = google("gemini-3-flash-preview");
 
-    const system = `Você é Informa Ágora, estrategista de comunicação política de elite. Escreve em PT-BR brasileiro, com clareza institucional e impacto. NUNCA inventa fatos: trabalha apenas com o que está na notícia. Adapta o tom à persona do candidato. SEMPRE inclui a frase "Conteúdo produzido com auxílio de IA." ao final, em linha separada.`;
+    const system = `Você é Informa Ágora, estrategista de comunicação política de elite. Escreve em PT-BR brasileiro, com clareza institucional e impacto. NUNCA inventa fatos: trabalha apenas com a notícia e com a memória legislativa fornecida. Adapta o tom à persona do candidato. SEMPRE inclui a frase "Conteúdo produzido com auxílio de IA." ao final, em linha separada.`;
 
     const userPrompt = `PERSONA DO CANDIDATO:
 - Nome: ${profile?.full_name ?? "—"}
@@ -57,8 +65,13 @@ NOTÍCIA-BASE (use como gancho, não copie):
 - Urgência: ${news.urgency}
 - Resumo: ${news.summary ?? "—"}
 
+MEMÓRIA LEGISLATIVA DOCUMENTADA:
+${memoryContext || "Nenhum trecho relevante encontrado na memória legislativa."}
+
 FORMATO:
 ${FORMAT_INSTRUCTIONS[data.format]}
+
+Use a memória legislativa apenas quando houver conexão real com a notícia. Não diga que o candidato fez algo se isso não estiver documentado acima.
 
 Produza o conteúdo final pronto para a equipe revisar e publicar.`;
 
@@ -81,6 +94,68 @@ Produza o conteúdo final pronto para a equipe revisar e publicar.`;
     if (insErr) throw new Error(insErr.message);
     return inserted;
   });
+
+async function getLegislativeMemoryContext(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  query: string,
+) {
+  const terms = query
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/\W+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 4)
+    .slice(0, 8);
+
+  if (!terms.length) return "";
+
+  const actionQuery = terms.join(" ");
+  const safeIlike = actionQuery.replace(/[,%]/g, " ");
+  const lines: string[] = [];
+
+  try {
+    const { data: actions } = await supabase
+      .from("candidate_actions")
+      .select("action_type, title, description, theme, source, action_date")
+      .eq("user_id", userId)
+      .or(`title.ilike.%${safeIlike}%,description.ilike.%${safeIlike}%,theme.ilike.%${safeIlike}%`)
+      .limit(4);
+
+    for (const action of actions ?? []) {
+      lines.push(
+        `- ${action.title} (${action.action_type}${action.action_date ? `, ${action.action_date}` : ""}${action.source ? `, fonte: ${action.source}` : ""}): ${action.description ?? action.theme ?? "registro documentado"}`,
+      );
+    }
+  } catch {
+    // The memory tables may not exist yet in projects that have not applied the migration.
+  }
+
+  try {
+    const { data: chunks } = await supabase
+      .from("legislative_document_chunks")
+      .select("content, legislative_documents(file_name)")
+      .eq("user_id", userId)
+      .textSearch("content_search", actionQuery, {
+        type: "plain",
+        config: "portuguese",
+      })
+      .limit(4);
+
+    for (const chunk of chunks ?? []) {
+      const fileName = Array.isArray(chunk.legislative_documents)
+        ? chunk.legislative_documents[0]?.file_name
+        : chunk.legislative_documents?.file_name;
+      lines.push(
+        `- Trecho de ${fileName ?? "documento enviado"}: ${String(chunk.content).slice(0, 700)}`,
+      );
+    }
+  } catch {
+    // Keep post generation available even before the document RAG migration is applied.
+  }
+
+  return lines.slice(0, 8).join("\n");
+}
 
 export const listPostsForNews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
