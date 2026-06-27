@@ -1,18 +1,29 @@
-import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+﻿import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, ScrollText, Settings, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  Newspaper,
+  Sparkles,
+  Library,
+  BarChart3,
+  ScrollText,
+  Settings,
+  LogOut,
+  BookOpenCheck,
+} from "lucide-react";
 import logo from "@/assets/informa-agora-logo-transparent.png";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
 const NAV = [
   { to: "/dashboard", label: "Centro de Comando", icon: LayoutDashboard },
-  { to: "/radar", label: "Radar de Notícias", icon: Newspaper },
-  { to: "/studio", label: "Estúdio de Criação", icon: Sparkles },
+  { to: "/radar", label: "Radar de NotÃ­cias", icon: Newspaper },
+  { to: "/studio", label: "EstÃºdio de CriaÃ§Ã£o", icon: Sparkles },
   { to: "/library", label: "Biblioteca", icon: Library },
-  { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
+  { to: "/history", label: "MemÃ³ria Legislativa", icon: BookOpenCheck },
+  { to: "/sentiment", label: "TermÃ´metro Social", icon: BarChart3 },
   { to: "/logs", label: "Logs de coleta", icon: ScrollText },
-  { to: "/settings", label: "Configurações", icon: Settings },
+  { to: "/settings", label: "ConfiguraÃ§Ãµes", icon: Settings },
 ] as const;
 
 export function AppShell({ children, title, subtitle, actions }: {
@@ -34,8 +45,8 @@ export function AppShell({ children, title, subtitle, actions }: {
       <aside className="w-64 shrink-0 bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="p-6 border-b border-sidebar-border/40">
           <Link to="/dashboard" className="flex items-center gap-2">
-            <img src={logo} alt="Informa Ágora" className="h-11 w-auto object-contain brightness-0 invert" />
-            <span className="font-serif text-xl">Informa Ágora</span>
+            <img src={logo} alt="Informa Ãgora" className="h-11 w-auto object-contain brightness-0 invert" />
+            <span className="font-serif text-xl">Informa Ãgora</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">
@@ -84,3 +95,4 @@ export function AppShell({ children, title, subtitle, actions }: {
 }
 
 export { Button };
+
