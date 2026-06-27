@@ -64,18 +64,23 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
     timestamp?: string;
     ownerUsername?: string;
     displayUrl?: string;
-    latestComments?: Array<{ id?: string; text?: string; ownerUsername?: string; timestamp?: string }>;
+    latestComments?: Array<{
+      id?: string;
+      text?: string;
+      ownerUsername?: string;
+      timestamp?: string;
+    }>;
   };
   const items = await runActorSync<Post>(
     "apify/instagram-scraper",
     {
       directUrls: [`https://www.instagram.com/${handle.replace(/^@/, "")}/`],
       resultsType: "posts",
-      resultsLimit: 8,
+      resultsLimit: 20,
       addParentData: false,
     },
     token,
-    8,
+    20,
   );
   const out: RawMention[] = [];
   for (const p of items) {
@@ -84,20 +89,7 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
     const cap = clean(p.caption);
     const truncatedCap = cap ? truncate(cap, 240) : null;
     const thumb = p.displayUrl ?? null;
-    if (cap) {
-      out.push({
-        network: "instagram",
-        external_id: `ig_post_${postId ?? Math.random()}`,
-        author: p.ownerUsername ?? handle,
-        content: cap.slice(0, 1200),
-        url: postUrl,
-        posted_at: p.timestamp ?? null,
-        parent_post_id: postId,
-        parent_post_url: postUrl,
-        parent_post_caption: truncatedCap,
-        parent_post_thumbnail: thumb,
-      });
-    }
+    // Keep the feed focused on interactions, not the account's own captions.
     for (const c of p.latestComments ?? []) {
       const text = clean(c.text);
       if (!text) continue;
@@ -179,7 +171,12 @@ export async function fetchTiktokMentions(handle: string, token: string): Promis
   };
   const items = await runActorSync<Video>(
     "clockworks/tiktok-scraper",
-    { profiles: [handle.replace(/^@/, "")], resultsPerPage: 10, shouldDownloadVideos: false, shouldDownloadCovers: false },
+    {
+      profiles: [handle.replace(/^@/, "")],
+      resultsPerPage: 10,
+      shouldDownloadVideos: false,
+      shouldDownloadCovers: false,
+    },
     token,
     10,
   );
@@ -216,7 +213,10 @@ export async function fetchFacebookMentions(handle: string, token: string): Prom
   };
   const items = await runActorSync<Post>(
     "apify/facebook-posts-scraper",
-    { startUrls: [{ url: `https://www.facebook.com/${handle.replace(/^@/, "")}` }], resultsLimit: 10 },
+    {
+      startUrls: [{ url: `https://www.facebook.com/${handle.replace(/^@/, "")}` }],
+      resultsLimit: 10,
+    },
     token,
     10,
   );

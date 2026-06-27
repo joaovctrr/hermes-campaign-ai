@@ -6,9 +6,24 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { RefreshCw, ExternalLink, Instagram, Twitter, Facebook, Music2, Lock, MessageSquare } from "lucide-react";
+import {
+  RefreshCw,
+  ExternalLink,
+  Instagram,
+  Twitter,
+  Facebook,
+  Music2,
+  Lock,
+  MessageSquare,
+} from "lucide-react";
 import {
   getLatestSnapshot,
   listMyMentions,
@@ -38,7 +53,9 @@ function SentimentPage() {
   const cooldownFn = useServerFn(getManualCooldownStatus);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"todas" | "positivo" | "neutro" | "negativo">("todas");
-  const [network, setNetwork] = useState<"todas" | "instagram" | "twitter" | "tiktok" | "facebook">("todas");
+  const [network, setNetwork] = useState<"todas" | "instagram" | "twitter" | "tiktok" | "facebook">(
+    "todas",
+  );
   const [postModal, setPostModal] = useState<null | {
     network: string;
     url?: string | null;
@@ -88,7 +105,7 @@ function SentimentPage() {
           : r.reason === "no_handles"
             ? "Adicione um handle em Configurações."
             : r.reason === "no_results"
-              ? "Apify não retornou itens. Tente novamente em alguns minutos."
+              ? "Aplicação não retornou itens. Tente novamente em alguns minutos."
               : "Nada novo desde a última coleta.",
       );
       await Promise.all([refetchSnap(), refetchMentions(), refetchCd()]);
@@ -109,12 +126,13 @@ function SentimentPage() {
   return (
     <AppShell
       title="Termômetro Social"
-      subtitle="Sentimento agregado das últimas menções coletadas via Apify (7 dias)."
+      subtitle="Sentimento agregado dos principais comentários e menções recentes coletados."
       actions={
         <div className="flex items-center gap-2">
           {cd && (
             <Badge variant="outline" className="text-xs">
-              Plano {planLabel(cd.plan)} · cooldown {cd.cooldownHours === 0 ? "livre" : `${cd.cooldownHours}h`}
+              Plano {planLabel(cd.plan)} · cooldown{" "}
+              {cd.cooldownHours === 0 ? "livre" : `${cd.cooldownHours}h`}
             </Badge>
           )}
           <Button onClick={refresh} disabled={refreshing || !hasHandles || blocked}>
@@ -136,8 +154,8 @@ function SentimentPage() {
         <div className="rounded-xl border border-dashed border-border bg-card p-6 mb-6">
           <h2 className="font-serif text-lg mb-1">Configure pelo menos uma rede social</h2>
           <p className="text-sm text-muted-foreground">
-            Vá em <strong>Configurações → Redes sociais monitoradas</strong> e adicione o handle de Instagram, X,
-            TikTok ou Facebook.
+            Vá em <strong>Configurações → Redes sociais monitoradas</strong> e adicione o handle de
+            Instagram, X, TikTok ou Facebook.
           </p>
         </div>
       )}
@@ -158,31 +176,39 @@ function SentimentPage() {
             <div className="bg-destructive" style={{ width: `${neg}%` }} />
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            {Object.entries((snap?.networks as Record<string, { total: number; pos: number; neg: number; neu: number }>) ?? {}).map(
-              ([net, c]) => {
-                const active = network === net;
-                return (
-                  <button
-                    type="button"
-                    key={net}
-                    onClick={() => setNetwork(active ? "todas" : (net as typeof network))}
-                    className={`text-left rounded-md border p-3 transition ${
-                      active
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border hover:border-primary/40 hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="font-medium capitalize flex items-center justify-between">
-                      {net}
-                      {active && <span className="text-[10px] uppercase tracking-wider text-primary">filtrando</span>}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {c.total} menções · {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
-                    </div>
-                  </button>
-                );
-              },
-            )}
+            {Object.entries(
+              (snap?.networks as Record<
+                string,
+                { total: number; pos: number; neg: number; neu: number }
+              >) ?? {},
+            ).map(([net, c]) => {
+              const active = network === net;
+              return (
+                <button
+                  type="button"
+                  key={net}
+                  onClick={() => setNetwork(active ? "todas" : (net as typeof network))}
+                  className={`text-left rounded-md border p-3 transition ${
+                    active
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : "border-border hover:border-primary/40 hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="font-medium capitalize flex items-center justify-between">
+                    {net}
+                    {active && (
+                      <span className="text-[10px] uppercase tracking-wider text-primary">
+                        filtrando
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {c.total} menções ·{" "}
+                    {c.pos > 0 ? `${Math.round((c.pos / c.total) * 100)}% positivas` : "—"}
+                  </div>
+                </button>
+              );
+            })}
           </div>
           {network !== "todas" && (
             <button
@@ -223,7 +249,9 @@ function SentimentPage() {
                       <Icon className="h-3.5 w-3.5" />
                       <span className="capitalize">{m.network}</span>
                       {m.author && <span>· @{m.author}</span>}
-                      {m.posted_at && <span>· {new Date(m.posted_at).toLocaleDateString("pt-BR")}</span>}
+                      {m.posted_at && (
+                        <span>· {new Date(m.posted_at).toLocaleDateString("pt-BR")}</span>
+                      )}
                     </div>
                     <Badge variant="outline" className={`text-xs ${sentColor}`}>
                       {m.sentiment}
@@ -330,7 +358,15 @@ function SentimentPage() {
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  accent?: string;
+}) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>

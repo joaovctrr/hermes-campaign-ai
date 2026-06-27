@@ -35,7 +35,10 @@ const UpdateSchema = z.object({
   tiktok_handle: HandleSchema,
   facebook_handle: HandleSchema,
   mention_keywords: z.array(z.string().min(1).max(80)).max(20).default([]),
-  monitored_networks: z.array(NetworkEnum).max(4).default(["instagram", "twitter", "tiktok", "facebook"]),
+  monitored_networks: z
+    .array(NetworkEnum)
+    .max(4)
+    .default(["instagram", "twitter", "tiktok", "facebook"]),
   cron_interval_hours: z.union([z.literal(6), z.literal(12), z.literal(24)]).default(6),
   onboarded: z.boolean().optional(),
 });
@@ -44,10 +47,14 @@ export const updateMyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => UpdateSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("profiles")
-      .update({ ...data, onboarded: data.onboarded ?? true })
-      .eq("id", context.userId);
+    const { error } = await context.supabase.from("profiles").upsert(
+      {
+        id: context.userId,
+        ...data,
+        onboarded: data.onboarded ?? true,
+      },
+      { onConflict: "id" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   });

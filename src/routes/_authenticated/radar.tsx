@@ -16,9 +16,12 @@ export const Route = createFileRoute("/_authenticated/radar")({
 });
 
 const URGENCY: Record<string, { label: string; className: string }> = {
-  alta: { label: "Urgência alta", className: "bg-destructive/10 text-destructive border-destructive/40" },
+  alta: {
+    label: "Urgência alta",
+    className: "bg-destructive/10 text-destructive border-destructive/40",
+  },
   media: { label: "Urgência média", className: "bg-gold/15 text-gold-foreground border-gold/40" },
-  baixa: { label: "Contexto", className: "bg-muted text-muted-foreground border-border" },
+  baixa: { label: "Sem urgência", className: "bg-muted text-muted-foreground border-border" },
 };
 
 function RadarPage() {
@@ -56,14 +59,20 @@ function RadarPage() {
         <div className="flex items-center gap-2">
           {cd && (
             <Badge variant="outline" className="text-xs">
-              Plano {planLabel(cd.plan)} · cooldown {cd.cooldownHours === 0 ? "livre" : `${cd.cooldownHours}h`}
+              Plano {planLabel(cd.plan)} · cooldown{" "}
+              {cd.cooldownHours === 0 ? "livre" : `${cd.cooldownHours}h`}
             </Badge>
           )}
-          <Button onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending || blocked}>
+          <Button
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending || blocked}
+          >
             {blocked ? (
               <Lock className="h-4 w-4 mr-2" />
             ) : (
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${refreshMutation.isPending ? "animate-spin" : ""}`}
+              />
             )}
             {blocked
               ? `Disponível em ${formatCooldownRemaining(cd!.remainingMs)}`
@@ -77,25 +86,37 @@ function RadarPage() {
       {isLoading ? (
         <p className="text-muted-foreground">Carregando...</p>
       ) : news.length === 0 ? (
-        <EmptyState onRefresh={() => refreshMutation.mutate()} loading={refreshMutation.isPending} blocked={blocked} />
+        <EmptyState
+          onRefresh={() => refreshMutation.mutate()}
+          loading={refreshMutation.isPending}
+          blocked={blocked}
+        />
       ) : (
         <div className="grid gap-4 max-w-4xl">
           {news.map((n) => {
             const urg = URGENCY[n.urgency] ?? URGENCY.baixa;
+            const timelineDate = n.published_at ?? n.created_at;
             return (
-              <article key={n.id} className="rounded-xl border border-border bg-card p-6 hover:border-gold/40 transition">
+              <article
+                key={n.id}
+                className="rounded-xl border border-border bg-card p-6 hover:border-gold/40 transition"
+              >
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{n.source ?? "Fonte"}</span>
                   <span>·</span>
                   <span>
-                    {formatDistanceToNow(new Date(n.created_at), { locale: ptBR, addSuffix: true })}
+                    {formatDistanceToNow(new Date(timelineDate), { locale: ptBR, addSuffix: true })}
                   </span>
                 </div>
                 <h3 className="mt-2 font-serif text-xl leading-snug">{n.title}</h3>
-                {n.summary && <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{n.summary}</p>}
+                {n.summary && (
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{n.summary}</p>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {n.theme && <Badge variant="outline">{n.theme}</Badge>}
-                  <Badge variant="outline" className={urg.className}>{urg.label}</Badge>
+                  <Badge variant="outline" className={urg.className}>
+                    {urg.label}
+                  </Badge>
                   <div className="ml-auto flex gap-2">
                     {n.url && (
                       <a href={n.url} target="_blank" rel="noopener noreferrer">
@@ -120,7 +141,15 @@ function RadarPage() {
   );
 }
 
-function EmptyState({ onRefresh, loading, blocked }: { onRefresh: () => void; loading: boolean; blocked: boolean }) {
+function EmptyState({
+  onRefresh,
+  loading,
+  blocked,
+}: {
+  onRefresh: () => void;
+  loading: boolean;
+  blocked: boolean;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center max-w-2xl mx-auto">
       <h3 className="font-serif text-xl">Seu radar está vazio.</h3>
@@ -128,7 +157,9 @@ function EmptyState({ onRefresh, loading, blocked }: { onRefresh: () => void; lo
         Configure seus temas monitorados em Configurações e clique em "Atualizar radar".
       </p>
       <div className="mt-6 flex justify-center gap-3">
-        <Link to="/settings"><Button variant="outline">Configurar perfil</Button></Link>
+        <Link to="/settings">
+          <Button variant="outline">Configurar perfil</Button>
+        </Link>
         <Button onClick={onRefresh} disabled={loading || blocked}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Atualizar radar

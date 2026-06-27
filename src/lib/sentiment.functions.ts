@@ -84,6 +84,7 @@ export const listMyMentions = createServerFn({ method: "GET" })
         "id, network, author, content, url, sentiment, score, posted_at, collected_at, parent_post_id, parent_post_url, parent_post_caption, parent_post_thumbnail",
       )
       .eq("user_id", context.userId)
+      .order("posted_at", { ascending: false, nullsFirst: false })
       .order("collected_at", { ascending: false })
       .limit(data.limit);
     if (data.network) q = q.eq("network", data.network);

@@ -10,6 +10,7 @@ export const listMyNews = createServerFn({ method: "GET" })
       .from("news_items")
       .select("*")
       .eq("user_id", context.userId)
+      .order("published_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) throw new Error(error.message);

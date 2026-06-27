@@ -27,39 +27,25 @@ export async function refreshRadarForUser(
 
   const all: Raw[] = [];
   for (const theme of themes.slice(0, 5)) {
-    const query = encodeURIComponent(`${theme} ${profile?.region ?? "Brasil"}`);
-    const url = `https://news.google.com/rss/search?q=${query}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
-    try {
-      const res = await fetch(url, { headers: { "User-Agent": "InformaAgoraBot/1.0" } });
-      if (!res.ok) continue;
-      const xml = await res.text();
-      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 4);
-      for (const m of items) {
-        const block = m[1];
-        const get = (tag: string) => {
-          const r = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`).exec(block);
-          return r ? r[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
-        };
-        const title = get("title");
-        const link = get("link");
-        const pubDate = get("pubDate");
-        const source = get("source");
-        if (title && link) all.push({ title, link, source, pubDate, theme });
-      }
-    } catch {
-      /* ignora */
-    }
+    all.push(...(await fetchGoogleNews(`${theme} ${profile?.region ?? "Brasil"}`, theme)));
+    all.push(...(await fetchGoogleNews(`${theme} Brasil when:1d`, theme)));
   }
   if (!all.length) return { inserted: 0, reason: "no_feed_results" };
 
-  const urls = all.map((n) => n.link);
+  const ranked = dedupeNews(all)
+    .filter((n) => isFresh(n.pubDate))
+    .sort((a, b) => newsTime(b.pubDate) - newsTime(a.pubDate))
+    .slice(0, 24);
+  if (!ranked.length) return { inserted: 0, reason: "no_recent_results" };
+
+  const urls = ranked.map((n) => n.link);
   const { data: existing } = await supabase
     .from("news_items")
     .select("url")
     .eq("user_id", userId)
     .in("url", urls);
   const existingSet = new Set((existing ?? []).map((r: { url: string | null }) => r.url));
-  const novel = all.filter((n) => !existingSet.has(n.link)).slice(0, 12);
+  const novel = ranked.filter((n) => !existingSet.has(n.link)).slice(0, 12);
   if (!novel.length) return { inserted: 0, reason: "already_fresh" };
 
   const google = createGoogleAiProvider(apiKey);
@@ -84,18 +70,115 @@ ${novel.map((n, i) => `${i}. [${n.theme}] ${n.title} (fonte: ${n.source})`).join
   }
 
   const byIndex = new Map(parsed.map((p) => [p.i, p]));
-  const rows = novel.map((n, i) => ({
-    user_id: userId,
-    title: n.title,
-    source: n.source || "Google News",
-    url: n.link,
-    summary: byIndex.get(i)?.summary ?? null,
-    theme: n.theme,
-    urgency: byIndex.get(i)?.urgency ?? "baixa",
-    published_at: n.pubDate ? new Date(n.pubDate).toISOString() : null,
-  }));
+  const rows = novel.map((n, i) => {
+    const urgency = normalizeUrgency(byIndex.get(i)?.urgency) ?? inferUrgency(n.title);
+    return {
+      user_id: userId,
+      title: n.title,
+      source: n.source || "Google News",
+      url: n.link,
+      summary: byIndex.get(i)?.summary ?? null,
+      theme: n.theme,
+      urgency,
+      published_at: n.pubDate ? new Date(n.pubDate).toISOString() : null,
+    };
+  });
 
   const { error: insErr } = await supabase.from("news_items").insert(rows);
   if (insErr) throw new Error(insErr.message);
   return { inserted: rows.length };
+}
+
+async function fetchGoogleNews(query: string, theme: string): Promise<Raw[]> {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "InformaAgoraBot/1.0" } });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8).flatMap((m) => {
+      const block = m[1];
+      const get = (tag: string) => {
+        const r = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`).exec(block);
+        return r ? r[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
+      };
+      const title = decodeXml(get("title"));
+      const link = decodeXml(get("link"));
+      const pubDate = get("pubDate");
+      const source = decodeXml(get("source"));
+      return title && link ? [{ title, link, source, pubDate, theme }] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function dedupeNews(items: Raw[]): Raw[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.link || item.title.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function newsTime(value?: string): number {
+  if (!value) return 0;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function isFresh(value?: string): boolean {
+  const time = newsTime(value);
+  return !time || time >= Date.now() - 3 * 24 * 60 * 60 * 1000;
+}
+
+function normalizeUrgency(value?: string): "alta" | "media" | "baixa" | null {
+  if (!value) return null;
+  const normalized = value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toLowerCase();
+  if (normalized.startsWith("alt")) return "alta";
+  if (normalized.startsWith("med")) return "media";
+  if (normalized.startsWith("bai") || normalized.includes("context")) return "baixa";
+  return null;
+}
+
+function inferUrgency(title: string): "alta" | "media" | "baixa" {
+  const text = title
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+  const high = [
+    "acus",
+    "assassin",
+    "ataque",
+    "combate",
+    "crime",
+    "denunc",
+    "garimpo ilegal",
+    "investiga",
+    "morre",
+    "morte",
+    "operacao",
+    "pris",
+    "suspeit",
+    "video:",
+    "violencia",
+  ];
+  const medium = ["alerta", "amplia", "anuncia", "crise", "fiscaliza", "protest", "seguranca"];
+  if (high.some((term) => text.includes(term))) return "alta";
+  if (medium.some((term) => text.includes(term))) return "media";
+  return "baixa";
 }
