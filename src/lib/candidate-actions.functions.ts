@@ -159,7 +159,7 @@ export const deleteCandidateAction = createServerFn({ method: "POST" })
 export const searchCamaraPropositions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => CamaraSearchSchema.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const params = new URLSearchParams({
       keywords: data.query,
       ordem: "DESC",
@@ -178,15 +178,30 @@ export const searchCamaraPropositions = createServerFn({ method: "GET" })
     }
 
     const payload = (await response.json()) as { dados?: CamaraPropositionSummary[] };
-    return (payload.dados ?? []).map((item) => ({
-      id: String(item.id),
-      title: formatCamaraTitle(item),
-      summary: item.ementa ?? "",
-      source_url: camaraPortalUrl(item.id),
-      api_url: item.uri ?? null,
-      year: item.ano ?? null,
-      type: item.siglaTipo ?? null,
-    }));
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    const candidateName = profile?.full_name ?? "";
+
+    return Promise.all(
+      (payload.dados ?? []).map(async (item) => {
+        const authors = await fetchCamaraAuthors(item.id);
+        return {
+          id: String(item.id),
+          title: formatCamaraTitle(item),
+          summary: item.ementa ?? "",
+          source_url: camaraPortalUrl(item.id),
+          api_url: item.uri ?? null,
+          year: item.ano ?? null,
+          type: item.siglaTipo ?? null,
+          authors,
+          relation: evaluateCandidateRelation(candidateName, item, authors),
+        };
+      }),
+    );
   });
 
 export const importCamaraProposition = createServerFn({ method: "POST" })
@@ -423,6 +438,11 @@ type CamaraPropositionSummary = {
   ementa?: string;
 };
 
+type CamaraAuthor = {
+  nome?: string;
+  tipo?: string;
+};
+
 type CamaraPropositionDetail = CamaraPropositionSummary & {
   dataApresentacao?: string;
   ementaDetalhada?: string;
@@ -449,4 +469,89 @@ function camaraActionType(type?: string) {
   if (normalized.includes("PEC")) return "Emenda";
   if (normalized.includes("REQ")) return "Requerimento";
   return "Proposição";
+}
+
+async function fetchCamaraAuthors(propositionId: number | string) {
+  try {
+    const response = await fetch(
+      `https://dadosabertos.camara.leg.br/api/v2/proposicoes/${propositionId}/autores`,
+      { headers: { accept: "application/json" } },
+    );
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { dados?: CamaraAuthor[] };
+    return (payload.dados ?? [])
+      .map((author) => ({
+        name: author.nome ?? "",
+        type: author.tipo ?? null,
+      }))
+      .filter((author) => author.name);
+  } catch {
+    return [];
+  }
+}
+
+function evaluateCandidateRelation(
+  candidateName: string,
+  item: CamaraPropositionSummary,
+  authors: Array<{ name: string; type: string | null }>,
+) {
+  const candidate = normalizeComparable(candidateName);
+  if (!candidate) {
+    return {
+      level: "unknown" as const,
+      label: "Nome do perfil não informado",
+      detail: "Cadastre o nome do candidato nas configurações para comparar com os autores.",
+    };
+  }
+
+  const matchedAuthor = authors.find((author) =>
+    namesLookRelated(candidate, normalizeComparable(author.name)),
+  );
+
+  if (matchedAuthor) {
+    return {
+      level: "direct" as const,
+      label: "Relação direta encontrada",
+      detail: `O nome cadastrado aparece entre os autores: ${matchedAuthor.name}.`,
+    };
+  }
+
+  const text = normalizeComparable(
+    [formatCamaraTitle(item), item.ementa].filter(Boolean).join(" "),
+  );
+  if (namesLookRelated(candidate, text)) {
+    return {
+      level: "possible" as const,
+      label: "Possível relação no texto",
+      detail: "O nome cadastrado aparece no título ou na ementa, mas não entre os autores.",
+    };
+  }
+
+  return {
+    level: "none" as const,
+    label: "Nome não encontrado",
+    detail: "O nome cadastrado não apareceu entre os autores nem no texto da proposição.",
+  };
+}
+
+function normalizeComparable(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function namesLookRelated(candidate: string, target: string) {
+  if (!candidate || !target) return false;
+  if (target.includes(candidate) || candidate.includes(target)) return true;
+
+  const candidateTokens = candidate.split(" ").filter((token) => token.length >= 3);
+  const targetTokens = new Set(target.split(" ").filter((token) => token.length >= 3));
+  const shared = candidateTokens.filter((token) => targetTokens.has(token));
+  const lastName = candidateTokens.at(-1);
+
+  return shared.length >= 2 && Boolean(lastName && targetTokens.has(lastName));
 }

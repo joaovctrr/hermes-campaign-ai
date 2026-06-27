@@ -393,6 +393,17 @@ function HistoryPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="text-sm font-medium">{item.title}</h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <Badge variant={relationBadgeVariant(item.relation.level)}>
+                            {item.relation.label}
+                          </Badge>
+                          {item.authors.length > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              Autor(es): {item.authors.map((author) => author.name).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{item.relation.detail}</p>
                         <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
                           {item.summary || "Sem ementa disponível."}
                         </p>
@@ -645,4 +656,11 @@ function formatBytes(bytes: number) {
   const units = ["B", "KB", "MB"];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function relationBadgeVariant(level: string): "default" | "secondary" | "destructive" | "outline" {
+  if (level === "direct") return "default";
+  if (level === "possible") return "secondary";
+  if (level === "none") return "destructive";
+  return "outline";
 }
