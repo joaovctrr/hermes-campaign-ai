@@ -17,7 +17,9 @@ export async function refreshRadarForUser(
 ): Promise<{ inserted: number; reason?: string }> {
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
-    .select("political_role, region, preferred_news_state, monitored_themes")
+    .select(
+      "political_role, region, preferred_news_state, preferred_news_neighborhood, monitored_themes",
+    )
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
@@ -27,7 +29,11 @@ export async function refreshRadarForUser(
 
   const all: Raw[] = [];
   const localSignal = profile?.preferred_news_state || profile?.region || "Brasil";
+  const neighborhoodSignal = profile?.preferred_news_neighborhood?.trim();
   for (const theme of themes.slice(0, 5)) {
+    if (neighborhoodSignal) {
+      all.push(...(await fetchGoogleNews(`${theme} ${neighborhoodSignal} ${localSignal}`, theme)));
+    }
     all.push(...(await fetchGoogleNews(`${theme} ${localSignal}`, theme)));
     if (profile?.region && profile.region !== localSignal) {
       all.push(...(await fetchGoogleNews(`${theme} ${profile.region}`, theme)));
@@ -55,16 +61,25 @@ export async function refreshRadarForUser(
   const google = createGoogleAiProvider(apiKey);
   const model = google("gemini-3-flash-preview");
 
-  const prompt = `Você é Informa Ágora, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta"}.
+  const prompt = `Você é Informa Ágora, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta", "state": "UF ou estado citado", "neighborhood": "bairro citado ou null"}.
 
 Critério ALTA: crise, escândalo, denúncia, tragédia ou pauta de segurança/saúde com impacto direto em "${localSignal}" ou na região "${profile?.region ?? "Brasil"}" e perfil "${profile?.political_role ?? "político"}".
 MEDIA: tema relevante sem crise.
 BAIXA: contexto/análise.
+Estado preferencial do usuário: ${profile?.preferred_news_state ?? "não informado"}.
+Bairro preferencial do usuário: ${profile?.preferred_news_neighborhood ?? "não informado"}.
+Se o estado/bairro não aparecer claramente, use null. Não invente bairro.
 
 Notícias:
 ${novel.map((n, i) => `${i}. [${n.theme}] ${n.title} (fonte: ${n.source})`).join("\n")}`;
 
-  let parsed: Array<{ i: number; summary: string; urgency: string }> = [];
+  let parsed: Array<{
+    i: number;
+    summary: string;
+    urgency: string;
+    state?: string | null;
+    neighborhood?: string | null;
+  }> = [];
   try {
     const { text } = await generateText({ model, prompt });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -84,6 +99,10 @@ ${novel.map((n, i) => `${i}. [${n.theme}] ${n.title} (fonte: ${n.source})`).join
       summary: byIndex.get(i)?.summary ?? null,
       theme: n.theme,
       urgency,
+      state: normalizeLocation(byIndex.get(i)?.state) ?? inferState(n.title, localSignal),
+      neighborhood:
+        normalizeLocation(byIndex.get(i)?.neighborhood) ??
+        inferNeighborhood(n.title, profile?.preferred_news_neighborhood ?? null),
       published_at: n.pubDate ? new Date(n.pubDate).toISOString() : null,
     };
   });
@@ -185,4 +204,43 @@ function inferUrgency(title: string): "alta" | "media" | "baixa" {
   if (high.some((term) => text.includes(term))) return "alta";
   if (medium.some((term) => text.includes(term))) return "media";
   return "baixa";
+}
+
+function normalizeLocation(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.toLowerCase() === "null") return null;
+  return normalized.slice(0, 120);
+}
+
+function inferState(text: string, fallback: string | null) {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+  const states: Array<[string, string[]]> = [
+    ["MG", ["minas gerais", " minas ", " belo horizonte", " bh "]],
+    ["SP", ["sao paulo", " paulista"]],
+    ["RJ", ["rio de janeiro", " fluminense"]],
+    ["ES", ["espirito santo"]],
+    ["BA", ["bahia"]],
+    ["PR", ["parana"]],
+    ["SC", ["santa catarina"]],
+    ["RS", ["rio grande do sul"]],
+    ["GO", ["goias"]],
+    ["DF", ["distrito federal", "brasilia"]],
+  ];
+  const padded = ` ${normalized} `;
+  return states.find(([, terms]) => terms.some((term) => padded.includes(term)))?.[0] ?? fallback;
+}
+
+function inferNeighborhood(text: string, preferred: string | null) {
+  const match = /\bbairro\s+([\p{L}0-9][\p{L}0-9\s'.-]{2,36})/iu.exec(text);
+  if (match?.[1])
+    return match[1]
+      .replace(/\s+/g, " ")
+      .replace(/[.,;:!?-]+$/g, "")
+      .trim();
+  if (preferred && text.toLowerCase().includes(preferred.toLowerCase())) return preferred;
+  return null;
 }

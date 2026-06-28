@@ -113,17 +113,20 @@ export const addManualNewsFromUrl = createServerFn({ method: "POST" })
 
     const { data: profile } = await context.supabase
       .from("profiles")
-      .select("political_role, region, preferred_news_state, monitored_themes")
+      .select(
+        "political_role, region, preferred_news_state, preferred_news_neighborhood, monitored_themes",
+      )
       .eq("id", context.userId)
       .maybeSingle();
 
     const google = createGoogleAiProvider(key);
     const model = google("gemini-3-flash-preview");
     const themes = profile?.monitored_themes ?? [];
-    const prompt = `Analise esta notícia para um radar político. Retorne SOMENTE JSON: {"summary":"até 2 frases", "urgency":"baixa|media|alta", "theme":"tema curto"}.
+    const prompt = `Analise esta notícia para um radar político. Retorne SOMENTE JSON: {"summary":"até 2 frases", "urgency":"baixa|media|alta", "theme":"tema curto", "state":"UF ou estado citado ou null", "neighborhood":"bairro citado ou null"}.
 
 Perfil: ${profile?.political_role ?? "político"}.
 Estado prioritário: ${profile?.preferred_news_state ?? "Brasil"}.
+Bairro prioritário: ${profile?.preferred_news_neighborhood ?? "não informado"}.
 Região: ${profile?.region ?? "Brasil"}.
 Temas monitorados: ${themes.join(", ") || "não informado"}.
 
@@ -132,7 +135,13 @@ Fonte: ${article.source}
 Descrição/metadados: ${article.description ?? "—"}
 URL: ${data.url}`;
 
-    let ai: { summary?: string; urgency?: string; theme?: string } = {};
+    let ai: {
+      summary?: string;
+      urgency?: string;
+      theme?: string;
+      state?: string | null;
+      neighborhood?: string | null;
+    } = {};
     try {
       const { text } = await generateText({ model, prompt });
       const match = text.match(/\{[\s\S]*\}/);
@@ -151,6 +160,13 @@ URL: ${data.url}`;
         summary: ai.summary ?? article.description ?? null,
         theme: data.theme ?? ai.theme ?? themes[0] ?? null,
         urgency: normalizeUrgency(ai.urgency) ?? "media",
+        state: normalizeLocation(ai.state) ?? profile?.preferred_news_state ?? null,
+        neighborhood:
+          normalizeLocation(ai.neighborhood) ??
+          inferNeighborhood(
+            `${article.title} ${article.description ?? ""}`,
+            profile?.preferred_news_neighborhood ?? null,
+          ),
         published_at: article.publishedAt,
       })
       .select("id")
@@ -273,5 +289,23 @@ function normalizeUrgency(value?: string): "alta" | "media" | "baixa" | null {
   if (normalized.startsWith("alt")) return "alta";
   if (normalized.startsWith("med")) return "media";
   if (normalized.startsWith("bai") || normalized.includes("sem")) return "baixa";
+  return null;
+}
+
+function normalizeLocation(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.toLowerCase() === "null") return null;
+  return normalized.slice(0, 120);
+}
+
+function inferNeighborhood(text: string, preferred: string | null) {
+  const match = /\bbairro\s+([\p{L}0-9][\p{L}0-9\s'.-]{2,36})/iu.exec(text);
+  if (match?.[1])
+    return match[1]
+      .replace(/\s+/g, " ")
+      .replace(/[.,;:!?-]+$/g, "")
+      .trim();
+  if (preferred && text.toLowerCase().includes(preferred.toLowerCase())) return preferred;
   return null;
 }

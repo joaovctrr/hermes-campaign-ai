@@ -28,6 +28,7 @@ const UpdateSchema = z.object({
   political_role: z.string().max(160).optional().nullable(),
   region: z.string().max(160).optional().nullable(),
   preferred_news_state: z.string().max(80).optional().nullable(),
+  preferred_news_neighborhood: z.string().max(120).optional().nullable(),
   bio: z.string().max(2000).optional().nullable(),
   tone: z.string().max(400).optional().nullable(),
   monitored_themes: z.array(z.string().min(1).max(80)).max(20).default([]),

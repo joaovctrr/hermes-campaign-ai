@@ -206,10 +206,16 @@ export type Database = {
       };
       news_items: {
         Row: {
+          author: string | null;
           created_at: string;
+          geography: string | null;
           id: string;
+          neighborhood: string | null;
           published_at: string | null;
+          relevance_score: number;
+          sentiment: string | null;
           source: string | null;
+          state: string | null;
           summary: string | null;
           theme: string | null;
           title: string;
@@ -218,10 +224,16 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          author?: string | null;
           created_at?: string;
+          geography?: string | null;
           id?: string;
+          neighborhood?: string | null;
           published_at?: string | null;
+          relevance_score?: number;
+          sentiment?: string | null;
           source?: string | null;
+          state?: string | null;
           summary?: string | null;
           theme?: string | null;
           title: string;
@@ -230,10 +242,16 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          author?: string | null;
           created_at?: string;
+          geography?: string | null;
           id?: string;
+          neighborhood?: string | null;
           published_at?: string | null;
+          relevance_score?: number;
+          sentiment?: string | null;
           source?: string | null;
+          state?: string | null;
           summary?: string | null;
           theme?: string | null;
           title?: string;
@@ -257,6 +275,7 @@ export type Database = {
           monitored_themes: string[] | null;
           onboarded: boolean;
           plan: string;
+          preferred_news_neighborhood: string | null;
           preferred_news_state: string | null;
           political_role: string | null;
           region: string | null;
@@ -278,6 +297,7 @@ export type Database = {
           monitored_themes?: string[] | null;
           onboarded?: boolean;
           plan?: string;
+          preferred_news_neighborhood?: string | null;
           preferred_news_state?: string | null;
           political_role?: string | null;
           region?: string | null;
@@ -299,6 +319,7 @@ export type Database = {
           monitored_themes?: string[] | null;
           onboarded?: boolean;
           plan?: string;
+          preferred_news_neighborhood?: string | null;
           preferred_news_state?: string | null;
           political_role?: string | null;
           region?: string | null;
@@ -357,7 +378,9 @@ export type Database = {
           collected_at: string;
           content: string;
           created_at: string;
+          crisis_alert: boolean;
           external_id: string | null;
+          geography: string | null;
           id: string;
           network: string;
           parent_post_caption: string | null;
@@ -365,9 +388,11 @@ export type Database = {
           parent_post_thumbnail: string | null;
           parent_post_url: string | null;
           posted_at: string | null;
+          relevance_score: number;
           score: number | null;
           sentiment: string;
           source_type: string;
+          theme: string | null;
           url: string | null;
           user_id: string;
         };
@@ -376,7 +401,9 @@ export type Database = {
           collected_at?: string;
           content: string;
           created_at?: string;
+          crisis_alert?: boolean;
           external_id?: string | null;
+          geography?: string | null;
           id?: string;
           network: string;
           parent_post_caption?: string | null;
@@ -384,9 +411,11 @@ export type Database = {
           parent_post_thumbnail?: string | null;
           parent_post_url?: string | null;
           posted_at?: string | null;
+          relevance_score?: number;
           score?: number | null;
           sentiment?: string;
           source_type?: string;
+          theme?: string | null;
           url?: string | null;
           user_id: string;
         };
@@ -395,7 +424,9 @@ export type Database = {
           collected_at?: string;
           content?: string;
           created_at?: string;
+          crisis_alert?: boolean;
           external_id?: string | null;
+          geography?: string | null;
           id?: string;
           network?: string;
           parent_post_caption?: string | null;
@@ -403,9 +434,11 @@ export type Database = {
           parent_post_thumbnail?: string | null;
           parent_post_url?: string | null;
           posted_at?: string | null;
+          relevance_score?: number;
           score?: number | null;
           sentiment?: string;
           source_type?: string;
+          theme?: string | null;
           url?: string | null;
           user_id?: string;
         };

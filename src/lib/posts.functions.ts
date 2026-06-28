@@ -20,6 +20,61 @@ const GenerateInput = z.object({
   format: FormatSchema,
 });
 
+const NewsMemoryInput = z.object({
+  news_item_id: z.string().uuid(),
+});
+
+export const getLegislativeMemoryForNews = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => NewsMemoryInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: news, error } = await context.supabase
+      .from("news_items")
+      .select("id, title, theme, summary")
+      .eq("id", data.news_item_id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!news) throw new Error("Notícia não encontrada.");
+
+    const results = await searchLegislativeMemoryChunks(
+      context.supabase,
+      context.userId,
+      [news.title, news.theme, news.summary].filter(Boolean).join(" "),
+      10,
+    );
+
+    const matches = (results as LegislativeMemoryMatch[]).map((item) => {
+      const metadata = asMetadata(item.metadata);
+      const theme = normalizeTheme(metadata.theme) ?? inferThemeFromMemory(item.content ?? "");
+      return {
+        id:
+          item.id ?? `${item.source_type ?? "memory"}:${item.title ?? item.content?.slice(0, 24)}`,
+        title: item.title ?? "Memória legislativa",
+        sourceType: item.source_type ?? "manual",
+        sourceLabel: sourceLabel(item.source_type),
+        theme,
+        similarity: typeof item.similarity === "number" ? Math.round(item.similarity * 100) : null,
+        excerpt: String(item.content ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 260),
+        sourceUrl: typeof metadata.source_url === "string" ? metadata.source_url : null,
+        actionDate: typeof metadata.action_date === "string" ? metadata.action_date : null,
+        keywords: Array.isArray(metadata.keywords)
+          ? metadata.keywords.filter((keyword): keyword is string => typeof keyword === "string")
+          : [],
+      };
+    });
+
+    const themes = [...new Set(matches.map((item) => item.theme).filter(Boolean) as string[])];
+    return {
+      newsTheme: news.theme,
+      themes,
+      matches,
+    };
+  });
+
 export const generatePost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => GenerateInput.parse(d))
@@ -125,6 +180,38 @@ function formatMemoryContext(
       return `- [${source}${score}] ${item.title ?? "Memória"}: ${String(item.content ?? "").slice(0, 850)}`;
     })
     .join("\n");
+}
+
+type LegislativeMemoryMatch = {
+  id?: string;
+  source_type?: string | null;
+  title?: string | null;
+  content?: string | null;
+  metadata?: unknown;
+  similarity?: number | null;
+};
+
+function asMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function normalizeTheme(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function inferThemeFromMemory(content: string) {
+  const match = /(?:^|\n)Tema:\s*([^\n]+)/i.exec(content);
+  return match?.[1]?.trim() ?? null;
+}
+
+function sourceLabel(sourceType?: string | null) {
+  if (sourceType === "camara") return "Câmara dos Deputados";
+  if (sourceType === "document") return "Documento enviado";
+  return "Registro manual";
 }
 
 export const listPostsForNews = createServerFn({ method: "GET" })

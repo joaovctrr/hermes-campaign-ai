@@ -51,6 +51,8 @@ function RadarPage() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [themeFilter, setThemeFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
+  const [stateFilter, setStateFilter] = useState("all");
+  const [neighborhoodFilter, setNeighborhoodFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
 
   const sources = useMemo(
@@ -61,19 +63,32 @@ function RadarPage() {
     () => [...new Set(news.map((item) => item.theme).filter(Boolean) as string[])].sort(),
     [news],
   );
+  const states = useMemo(
+    () => [...new Set(news.map((item) => newsState(item)).filter(Boolean) as string[])].sort(),
+    [news],
+  );
+  const neighborhoods = useMemo(
+    () =>
+      [...new Set(news.map((item) => newsNeighborhood(item)).filter(Boolean) as string[])].sort(),
+    [news],
+  );
   const filteredNews = useMemo(() => {
     const minTime = dateFilterToTime(dateFilter);
     return news.filter((item) => {
       const timelineDate = item.published_at ?? item.created_at;
       const time = new Date(timelineDate).getTime();
+      const itemState = newsState(item);
+      const itemNeighborhood = newsNeighborhood(item);
       return (
         (sourceFilter === "all" || item.source === sourceFilter) &&
         (themeFilter === "all" || item.theme === themeFilter) &&
         (urgencyFilter === "all" || item.urgency === urgencyFilter) &&
+        (stateFilter === "all" || itemState === stateFilter) &&
+        (neighborhoodFilter === "all" || itemNeighborhood === neighborhoodFilter) &&
         (!minTime || time >= minTime)
       );
     });
-  }, [dateFilter, news, sourceFilter, themeFilter, urgencyFilter]);
+  }, [dateFilter, neighborhoodFilter, news, sourceFilter, stateFilter, themeFilter, urgencyFilter]);
 
   const refreshMutation = useMutation({
     mutationFn: () => refresh(),
@@ -168,7 +183,7 @@ function RadarPage() {
       </section>
 
       {news.length > 0 && (
-        <section className="mb-6 grid max-w-4xl gap-3 md:grid-cols-4">
+        <section className="mb-6 grid max-w-5xl gap-3 md:grid-cols-3 xl:grid-cols-6">
           <FilterSelect value={sourceFilter} onChange={setSourceFilter}>
             <option value="all">Todos os canais</option>
             {sources.map((source) => (
@@ -190,6 +205,22 @@ function RadarPage() {
             <option value="alta">Alta</option>
             <option value="media">Média</option>
             <option value="baixa">Sem urgência</option>
+          </FilterSelect>
+          <FilterSelect value={stateFilter} onChange={setStateFilter}>
+            <option value="all">Todos os estados</option>
+            {states.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect value={neighborhoodFilter} onChange={setNeighborhoodFilter}>
+            <option value="all">Todos os bairros</option>
+            {neighborhoods.map((neighborhood) => (
+              <option key={neighborhood} value={neighborhood}>
+                {neighborhood}
+              </option>
+            ))}
           </FilterSelect>
           <FilterSelect value={dateFilter} onChange={setDateFilter}>
             <option value="all">Todas as datas</option>
@@ -219,6 +250,8 @@ function RadarPage() {
           {filteredNews.map((n) => {
             const urg = URGENCY[n.urgency] ?? URGENCY.baixa;
             const timelineDate = n.published_at ?? n.created_at;
+            const state = newsState(n);
+            const neighborhood = newsNeighborhood(n);
             return (
               <article
                 key={n.id}
@@ -230,6 +263,18 @@ function RadarPage() {
                   <span>
                     {formatDistanceToNow(new Date(timelineDate), { locale: ptBR, addSuffix: true })}
                   </span>
+                  {state && (
+                    <>
+                      <span>·</span>
+                      <span>{state}</span>
+                    </>
+                  )}
+                  {neighborhood && (
+                    <>
+                      <span>·</span>
+                      <span>{neighborhood}</span>
+                    </>
+                  )}
                 </div>
                 <h3 className="mt-2 font-serif text-xl leading-snug">{n.title}</h3>
                 {n.summary && (
@@ -237,6 +282,8 @@ function RadarPage() {
                 )}
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   {n.theme && <Badge variant="outline">{n.theme}</Badge>}
+                  {state && <Badge variant="outline">Estado: {state}</Badge>}
+                  {neighborhood && <Badge variant="outline">Bairro: {neighborhood}</Badge>}
                   <Badge variant="outline" className={urg.className}>
                     {urg.label}
                   </Badge>
@@ -290,6 +337,56 @@ function dateFilterToTime(value: string) {
   if (value === "7d") return Date.now() - 7 * day;
   if (value === "30d") return Date.now() - 30 * day;
   return 0;
+}
+
+type RadarNewsItem = Awaited<ReturnType<typeof listMyNews>>[number];
+
+function newsState(item: RadarNewsItem) {
+  return (
+    cleanLocation(item.state ?? null) ?? inferStateFromText(`${item.title} ${item.summary ?? ""}`)
+  );
+}
+
+function newsNeighborhood(item: RadarNewsItem) {
+  return (
+    cleanLocation(item.neighborhood ?? null) ??
+    inferNeighborhoodFromText(`${item.title} ${item.summary ?? ""}`)
+  );
+}
+
+function cleanLocation(value: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function inferStateFromText(text: string) {
+  const normalized = ` ${text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()} `;
+  const states: Array<[string, string[]]> = [
+    ["MG", ["minas gerais", " belo horizonte ", " bh "]],
+    ["SP", ["sao paulo"]],
+    ["RJ", ["rio de janeiro"]],
+    ["ES", ["espirito santo"]],
+    ["BA", ["bahia"]],
+    ["PR", ["parana"]],
+    ["SC", ["santa catarina"]],
+    ["RS", ["rio grande do sul"]],
+    ["GO", ["goias"]],
+    ["DF", ["distrito federal", "brasilia"]],
+  ];
+  return states.find(([, terms]) => terms.some((term) => normalized.includes(term)))?.[0] ?? null;
+}
+
+function inferNeighborhoodFromText(text: string) {
+  const match = /\bbairro\s+([\p{L}0-9][\p{L}0-9\s'.-]{2,36})/iu.exec(text);
+  return (
+    match?.[1]
+      ?.replace(/\s+/g, " ")
+      .replace(/[.,;:!?-]+$/g, "")
+      .trim() ?? null
+  );
 }
 
 function EmptyState({

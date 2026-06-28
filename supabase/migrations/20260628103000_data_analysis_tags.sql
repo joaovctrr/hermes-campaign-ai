@@ -1,8 +1,13 @@
 alter table public.news_items
   add column if not exists sentiment text,
   add column if not exists geography text,
+  add column if not exists state text,
+  add column if not exists neighborhood text,
   add column if not exists relevance_score integer not null default 1,
   add column if not exists author text;
+
+alter table public.profiles
+  add column if not exists preferred_news_neighborhood text;
 
 alter table public.social_mentions
   add column if not exists theme text,
@@ -18,6 +23,12 @@ create index if not exists news_items_user_sentiment_idx
 
 create index if not exists news_items_user_geography_idx
   on public.news_items(user_id, geography);
+
+create index if not exists news_items_user_state_idx
+  on public.news_items(user_id, state);
+
+create index if not exists news_items_user_neighborhood_idx
+  on public.news_items(user_id, neighborhood);
 
 create index if not exists social_mentions_user_theme_idx
   on public.social_mentions(user_id, theme);

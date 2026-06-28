@@ -35,6 +35,7 @@ function SettingsPage() {
     political_role: "",
     region: "",
     preferred_news_state: "",
+    preferred_news_neighborhood: "",
     bio: "",
     tone: "",
     themes: [] as string[],
@@ -67,6 +68,7 @@ function SettingsPage() {
         political_role: profile.political_role ?? "",
         region: profile.region ?? "",
         preferred_news_state: profile.preferred_news_state ?? "",
+        preferred_news_neighborhood: profile.preferred_news_neighborhood ?? "",
         bio: profile.bio ?? "",
         tone: profile.tone ?? "",
         themes: profile.monitored_themes ?? [],
@@ -120,6 +122,7 @@ function SettingsPage() {
           political_role: form.political_role || null,
           region: form.region || null,
           preferred_news_state: form.preferred_news_state || null,
+          preferred_news_neighborhood: form.preferred_news_neighborhood || null,
           bio: form.bio || null,
           tone: form.tone || null,
           monitored_themes: form.themes,
@@ -179,6 +182,13 @@ function SettingsPage() {
                 placeholder="Ex: Minas Gerais, MG"
                 value={form.preferred_news_state}
                 onChange={(e) => setForm({ ...form, preferred_news_state: e.target.value })}
+              />
+            </Field>
+            <Field label="Bairro preferencial para notícias">
+              <Input
+                placeholder="Ex: Centro, Santo Antônio, Barreiro"
+                value={form.preferred_news_neighborhood}
+                onChange={(e) => setForm({ ...form, preferred_news_neighborhood: e.target.value })}
               />
             </Field>
             <Field label="Tom de voz">
