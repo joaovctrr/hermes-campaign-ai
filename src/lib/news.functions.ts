@@ -1,7 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
+import { generateText } from "ai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
+import { createGoogleAiProvider } from "./ai-gateway.server";
+
+const ManualNewsSchema = z.object({
+  url: z.string().trim().url("Informe um link válido"),
+  theme: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
+});
 
 export const listMyNews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -82,6 +95,71 @@ export const refreshRadar = createServerFn({ method: "POST" })
     };
   });
 
+export const addManualNewsFromUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ManualNewsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
+
+    const article = await fetchArticleMetadata(data.url);
+    const { data: existing } = await context.supabase
+      .from("news_items")
+      .select("id")
+      .eq("user_id", context.userId)
+      .eq("url", data.url)
+      .maybeSingle();
+    if (existing?.id) return { id: existing.id, message: "Notícia já estava no radar." };
+
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("political_role, region, preferred_news_state, monitored_themes")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    const google = createGoogleAiProvider(key);
+    const model = google("gemini-3-flash-preview");
+    const themes = profile?.monitored_themes ?? [];
+    const prompt = `Analise esta notícia para um radar político. Retorne SOMENTE JSON: {"summary":"até 2 frases", "urgency":"baixa|media|alta", "theme":"tema curto"}.
+
+Perfil: ${profile?.political_role ?? "político"}.
+Estado prioritário: ${profile?.preferred_news_state ?? "Brasil"}.
+Região: ${profile?.region ?? "Brasil"}.
+Temas monitorados: ${themes.join(", ") || "não informado"}.
+
+Título: ${article.title}
+Fonte: ${article.source}
+Descrição/metadados: ${article.description ?? "—"}
+URL: ${data.url}`;
+
+    let ai: { summary?: string; urgency?: string; theme?: string } = {};
+    try {
+      const { text } = await generateText({ model, prompt });
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) ai = JSON.parse(match[0]);
+    } catch {
+      ai = {};
+    }
+
+    const { data: inserted, error } = await context.supabase
+      .from("news_items")
+      .insert({
+        user_id: context.userId,
+        title: article.title,
+        source: article.source,
+        url: data.url,
+        summary: ai.summary ?? article.description ?? null,
+        theme: data.theme ?? ai.theme ?? themes[0] ?? null,
+        urgency: normalizeUrgency(ai.urgency) ?? "media",
+        published_at: article.publishedAt,
+      })
+      .select("id")
+      .single();
+
+    if (error) throw new Error(error.message);
+    return { id: inserted.id, message: "Notícia adicionada ao radar." };
+  });
+
 export const getRadarCooldownStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -118,3 +196,82 @@ export const getNewsItem = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return item;
   });
+
+async function fetchArticleMetadata(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 InformaAgoraBot/1.0",
+      accept: "text/html,application/xhtml+xml",
+    },
+  });
+  if (!response.ok) throw new Error("Não foi possível acessar o link informado.");
+
+  const html = await response.text();
+  const title =
+    meta(html, "property", "og:title") ||
+    meta(html, "name", "twitter:title") ||
+    html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ||
+    url;
+  const description =
+    meta(html, "property", "og:description") ||
+    meta(html, "name", "description") ||
+    meta(html, "name", "twitter:description");
+  const publishedAt =
+    meta(html, "property", "article:published_time") ||
+    meta(html, "name", "pubdate") ||
+    meta(html, "name", "date") ||
+    null;
+  const source =
+    meta(html, "property", "og:site_name") || new URL(url).hostname.replace(/^www\./, "");
+
+  return {
+    title: cleanHtml(title),
+    description: description ? cleanHtml(description) : null,
+    source: cleanHtml(source),
+    publishedAt:
+      publishedAt && !Number.isNaN(new Date(publishedAt).getTime())
+        ? new Date(publishedAt).toISOString()
+        : null,
+  };
+}
+
+function meta(html: string, attr: "name" | "property", value: string) {
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const attrValue = getAttribute(tag, attr);
+    if (attrValue?.toLowerCase() === value.toLowerCase()) {
+      return getAttribute(tag, "content") ?? "";
+    }
+  }
+  return "";
+}
+
+function cleanHtml(value: string) {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getAttribute(tag: string, attr: string) {
+  const match = new RegExp(`${attr}=["']([^"']+)["']`, "i").exec(tag);
+  return match?.[1] ?? null;
+}
+
+function normalizeUrgency(value?: string): "alta" | "media" | "baixa" | null {
+  if (!value) return null;
+  const normalized = value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toLowerCase();
+  if (normalized.startsWith("alt")) return "alta";
+  if (normalized.startsWith("med")) return "media";
+  if (normalized.startsWith("bai") || normalized.includes("sem")) return "baixa";
+  return null;
+}

@@ -21,7 +21,11 @@ function SettingsPage() {
   const getProfile = useServerFn(getMyProfile);
   const update = useServerFn(updateMyProfile);
   const navigate = useNavigate();
-  const { data: profile, refetch, isLoading } = useQuery({
+  const {
+    data: profile,
+    refetch,
+    isLoading,
+  } = useQuery({
     queryKey: ["profile"],
     queryFn: () => getProfile(),
   });
@@ -30,6 +34,7 @@ function SettingsPage() {
     full_name: "",
     political_role: "",
     region: "",
+    preferred_news_state: "",
     bio: "",
     tone: "",
     themes: [] as string[],
@@ -61,6 +66,7 @@ function SettingsPage() {
         full_name: profile.full_name ?? "",
         political_role: profile.political_role ?? "",
         region: profile.region ?? "",
+        preferred_news_state: profile.preferred_news_state ?? "",
         bio: profile.bio ?? "",
         tone: profile.tone ?? "",
         themes: profile.monitored_themes ?? [],
@@ -89,7 +95,6 @@ function SettingsPage() {
     }));
   }
 
-
   function addTheme() {
     const t = themeInput.trim();
     if (!t || form.themes.includes(t)) return;
@@ -114,6 +119,7 @@ function SettingsPage() {
           full_name: form.full_name,
           political_role: form.political_role || null,
           region: form.region || null,
+          preferred_news_state: form.preferred_news_state || null,
           bio: form.bio || null,
           tone: form.tone || null,
           monitored_themes: form.themes,
@@ -148,7 +154,11 @@ function SettingsPage() {
         <form onSubmit={save} className="max-w-3xl space-y-8">
           <Section title="Identidade política">
             <Field label="Nome completo">
-              <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} required />
+              <Input
+                value={form.full_name}
+                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                required
+              />
             </Field>
             <Field label="Cargo / mandato">
               <Input
@@ -162,6 +172,13 @@ function SettingsPage() {
                 placeholder="Ex: Região Metropolitana de Belo Horizonte"
                 value={form.region}
                 onChange={(e) => setForm({ ...form, region: e.target.value })}
+              />
+            </Field>
+            <Field label="Estado preferencial para notícias">
+              <Input
+                placeholder="Ex: Minas Gerais, MG"
+                value={form.preferred_news_state}
+                onChange={(e) => setForm({ ...form, preferred_news_state: e.target.value })}
               />
             </Field>
             <Field label="Tom de voz">
@@ -181,7 +198,10 @@ function SettingsPage() {
             </Field>
           </Section>
 
-          <Section title="Temas monitorados" subtitle="Palavras-chave que a IA usa para varrer o noticiário.">
+          <Section
+            title="Temas monitorados"
+            subtitle="Palavras-chave que a IA usa para varrer o noticiário."
+          >
             <div className="flex gap-2">
               <Input
                 placeholder="Ex: Segurança Pública"
@@ -194,7 +214,9 @@ function SettingsPage() {
                   }
                 }}
               />
-              <Button type="button" variant="outline" onClick={addTheme}>Adicionar</Button>
+              <Button type="button" variant="outline" onClick={addTheme}>
+                Adicionar
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               {form.themes.map((t) => (
@@ -210,7 +232,9 @@ function SettingsPage() {
                 </Badge>
               ))}
               {!form.themes.length && (
-                <p className="text-xs text-muted-foreground">Nenhum tema cadastrado. Adicione ao menos 1.</p>
+                <p className="text-xs text-muted-foreground">
+                  Nenhum tema cadastrado. Adicione ao menos 1.
+                </p>
               )}
             </div>
           </Section>
@@ -278,7 +302,8 @@ function SettingsPage() {
                 })}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Seu plano <span className="font-medium capitalize">{plan}</span> permite no mínimo a cada {minInterval}h.
+                Seu plano <span className="font-medium capitalize">{plan}</span> permite no mínimo a
+                cada {minInterval}h.
                 {plan !== "enterprise" && " Faça upgrade para atualizações mais frequentes."}
               </p>
             </div>
@@ -288,7 +313,6 @@ function SettingsPage() {
             title="Redes sociais monitoradas"
             subtitle="Handles públicos usados pelo Termômetro Social (Apify). Deixe em branco o que não quiser monitorar."
           >
-
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="Instagram (sem @)">
                 <Input
@@ -336,7 +360,9 @@ function SettingsPage() {
                     }
                   }}
                 />
-                <Button type="button" variant="outline" onClick={addKeyword}>Adicionar</Button>
+                <Button type="button" variant="outline" onClick={addKeyword}>
+                  Adicionar
+                </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
                 {form.mention_keywords.map((t) => (
@@ -345,7 +371,10 @@ function SettingsPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setForm({ ...form, mention_keywords: form.mention_keywords.filter((x) => x !== t) })
+                        setForm({
+                          ...form,
+                          mention_keywords: form.mention_keywords.filter((x) => x !== t),
+                        })
                       }
                       className="ml-1 hover:text-destructive"
                     >
@@ -360,7 +389,9 @@ function SettingsPage() {
           <AdminDevTools currentPlan={plan} onChanged={refetch} />
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar alterações"}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Salvando..." : "Salvar alterações"}
+            </Button>
           </div>
         </form>
       )}
@@ -368,7 +399,15 @@ function SettingsPage() {
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
@@ -430,7 +469,8 @@ function AdminDevTools({
       <div>
         <h2 className="font-serif text-xl">Ferramentas de desenvolvedor</h2>
         <p className="text-sm text-muted-foreground">
-          Visível apenas para administradores. Plano atual: <Badge variant="secondary">{currentPlan}</Badge>
+          Visível apenas para administradores. Plano atual:{" "}
+          <Badge variant="secondary">{currentPlan}</Badge>
         </p>
       </div>
       <div className="flex flex-wrap gap-2">

@@ -66,13 +66,18 @@ NOTÍCIA-BASE (use como gancho, não copie):
 - Urgência: ${news.urgency}
 - Resumo: ${news.summary ?? "—"}
 
-MEMÓRIA LEGISLATIVA DOCUMENTADA:
+MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE (RAG vetorial + busca textual):
 ${memoryContext || "Nenhum trecho relevante encontrado na memória legislativa."}
 
 FORMATO:
 ${FORMAT_INSTRUCTIONS[data.format]}
 
-Use a memória legislativa apenas quando houver conexão real com a notícia. Não diga que o candidato fez algo se isso não estiver documentado acima.
+Estratégia obrigatória:
+1. Identifique a conexão mais forte entre a notícia e a memória legislativa.
+2. Se houver conexão, transforme a atuação documentada em autoridade, prova de coerência e proposta de fala.
+3. Se a conexão for fraca, use a notícia como contexto e não force autoria.
+4. Não diga que o candidato fez algo se isso não estiver documentado acima.
+5. Prefira trechos com maior relevância quando houver percentual informado.
 
 Produza o conteúdo final pronto para a equipe revisar e publicar.`;
 

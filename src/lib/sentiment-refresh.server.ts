@@ -8,8 +8,20 @@ import {
   fetchFacebookMentions,
   type RawMention,
 } from "./apify.server";
+import { buildCandidateAliases, inferSentimentForCandidate } from "./sentiment-rules";
 
 type Classified = RawMention & { sentiment: "positivo" | "neutro" | "negativo"; score: number };
+type SentimentProfile = {
+  full_name?: string | null;
+  political_role?: string | null;
+  bio?: string | null;
+  tone?: string | null;
+  instagram_handle?: string | null;
+  twitter_handle?: string | null;
+  tiktok_handle?: string | null;
+  facebook_handle?: string | null;
+  mention_keywords?: string[] | null;
+};
 
 /**
  * Server-only. Scrapes via Apify for each configured network, classifies
@@ -25,7 +37,7 @@ export async function refreshSentimentForUser(
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
     .select(
-      "instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks",
+      "full_name, political_role, bio, tone, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -73,7 +85,7 @@ export async function refreshSentimentForUser(
     .in("external_id", ids);
   const existingSet = new Set((existing ?? []).map((r: { external_id: string }) => r.external_id));
 
-  const classified = await classifyBatch(toClassify, googleApiKey);
+  const classified = await classifyBatch(toClassify, googleApiKey, profile);
 
   const rows = classified.map((m) => ({
     user_id: userId,
@@ -118,19 +130,40 @@ function mentionTime(m: RawMention): number {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-async function classifyBatch(items: RawMention[], googleApiKey: string): Promise<Classified[]> {
+async function classifyBatch(
+  items: RawMention[],
+  googleApiKey: string,
+  profile: SentimentProfile,
+): Promise<Classified[]> {
   const google = createGoogleAiProvider(googleApiKey);
   const model = google("gemini-3-flash-preview");
+  const aliases = buildCandidateAliases(profile);
 
-  const prompt = `Você é um analista de sentimento político em PT-BR. Classifique CADA comentário pelo sentimento do autor em relação ao político/perfil monitorado. Retorne SOMENTE um JSON array (sem markdown), com objetos {"i": <indice>, "s": "positivo"|"neutro"|"negativo", "score": <0..1 confiança>}.
-Critério:
-- positivo: elogio, apoio, aprovação, gratidão, defesa do político, concordância, entusiasmo, parabéns.
-- negativo: crítica, rejeição, raiva, ataque, deboche hostil, denúncia, acusação, cobrança agressiva, xingamento.
-- neutro: informativo, pergunta sem juízo, marcação de usuário, emoji isolado ou comentário sem opinião clara.
-Não marque tudo como neutro: se houver polaridade política clara, escolha positivo ou negativo.
+  const prompt = `Você é um analista de sentimento político em PT-BR. Classifique CADA comentário pelo sentimento do autor EM RELAÇÃO AO CANDIDATO/PERFIL MONITORADO, não pelo clima geral do assunto. Retorne SOMENTE um JSON array (sem markdown), com objetos {"i": <indice>, "s": "positivo"|"neutro"|"negativo", "score": <0..1 confiança>}.
+
+CANDIDATO/PERFIL MONITORADO:
+- Nome: ${profile.full_name ?? "não informado"}
+- Cargo: ${profile.political_role ?? "não informado"}
+- Handles/apelidos: ${aliases.join(", ") || "não informado"}
+- Posicionamento/bandeiras: ${profile.bio ?? "não informado"}
+
+Critério obrigatório:
+- positivo: fala bem do candidato, apoia o candidato, elogia o trabalho/posicionamento dele, concorda com a defesa feita por ele, agradece, parabeniza ou usa emojis de apoio em contexto de apoio.
+- negativo: critica o candidato, rejeita o candidato, acusa, cobra de forma hostil, ironiza contra ele, xinga, diz que ele não fez/faz nada, ou ataca o posicionamento dele.
+- neutro: não menciona juízo positivo/negativo sobre o candidato nem seu posicionamento; é só informação, pergunta genuína, marcação, legenda factual ou comentário sobre terceiros.
+- Se o comentário está no post do próprio candidato e diz "defende a classe", "parabéns", "apoio", "representa", "estamos juntos", classifique positivo.
+- Se o comentário está no post do próprio candidato e diz "vergonha", "não fez nada", "mentiroso", "fora", "cadê", "incompetente", classifique negativo.
+- Emoji isolado de aplauso, coração, joinha, força ou parabéns em post do candidato é positivo. Emoji isolado sem polaridade é neutro.
 
 Itens:
-${items.map((m, i) => `${i}. [${m.network}] ${m.content.slice(0, 300)}`).join("\n")}`;
+${items
+  .map(
+    (m, i) =>
+      `${i}. [${m.network}] autor=${m.author ?? "?"} comentario="${m.content.slice(0, 420)}"${
+        m.parent_post_caption ? ` | post="${m.parent_post_caption.slice(0, 180)}"` : ""
+      }`,
+  )
+  .join("\n")}`;
 
   let parsed: Array<{ i: number; s: string; score?: number }> = [];
   try {
@@ -144,7 +177,7 @@ ${items.map((m, i) => `${i}. [${m.network}] ${m.content.slice(0, 300)}`).join("\
   return items.map((m, i) => {
     const p = byIdx.get(i);
     const modelSentiment = normalizeSentiment(p?.s);
-    const inferredSentiment = inferSentiment(m.content);
+    const inferredSentiment = inferSentimentForCandidate(m.content, aliases);
     const sentiment = chooseSentiment(modelSentiment, inferredSentiment);
     return {
       ...m,
@@ -160,6 +193,8 @@ function chooseSentiment(
 ): Classified["sentiment"] {
   if (!modelSentiment) return inferredSentiment;
   if (modelSentiment === "neutro" && inferredSentiment !== "neutro") return inferredSentiment;
+  if (modelSentiment !== inferredSentiment && inferredSentiment !== "neutro")
+    return inferredSentiment;
   return modelSentiment;
 }
 
@@ -175,118 +210,6 @@ function normalizeSentiment(value: unknown): Classified["sentiment"] | null {
   if (normalized.startsWith("neg")) return "negativo";
   if (normalized.startsWith("neu")) return "neutro";
   return null;
-}
-
-function inferSentiment(content: string): Classified["sentiment"] {
-  const text = content
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-
-  const negativeTerms = [
-    "acabou",
-    "absurdo",
-    "burro",
-    "cade",
-    "cadê",
-    "cala boca",
-    "cansado",
-    "corrupt",
-    "criminos",
-    "critica",
-    "covarde",
-    "decepcao",
-    "decepcion",
-    "demagog",
-    "descaso",
-    "desonest",
-    "devia ter vergonha",
-    "engan",
-    "facil falar",
-    "fake",
-    "fora",
-    "fraco",
-    "hipocri",
-    "horrivel",
-    "incompet",
-    "ladrao",
-    "lixo",
-    "mentir",
-    "mentiros",
-    "nao acredito",
-    "nao da",
-    "nao fez",
-    "nao faz",
-    "nao gostei",
-    "nao presta",
-    "omiss",
-    "palhac",
-    "pare de",
-    "perdeu",
-    "pessim",
-    "piada",
-    "promessa",
-    "ridicul",
-    "safad",
-    "sumiu",
-    "vergonhoso",
-    "vergonha",
-  ];
-  const positiveTerms = [
-    "abraco",
-    "apoio",
-    "apoiado",
-    "apoiamos",
-    "aprov",
-    "boa",
-    "bom",
-    "bravo",
-    "classe",
-    "concordo",
-    "defende",
-    "defender",
-    "defesa",
-    "deus abencoe",
-    "diferenciado",
-    "excelente",
-    "fechado",
-    "felicit",
-    "forca",
-    "gratid",
-    "honra",
-    "honesto",
-    "juntos",
-    "lider",
-    "merece",
-    "melhor",
-    "obrigad",
-    "orgulho",
-    "parabens",
-    "perfeito",
-    "representa",
-    "respeito",
-    "show",
-    "top",
-    "trabalho",
-    "unico q defende",
-    "unico que defende",
-    "vamos",
-  ];
-
-  const positiveEmoji =
-    /[\u{1f44f}\u{1f44d}\u{1f4aa}\u{1f64c}\u{1f64f}\u{1f3c6}\u{1f947}\u{2764}\u{1f499}\u{1f49a}]/u;
-  const negativeEmoji = /[\u{1f44e}\u{1f621}\u{1f620}\u{1f92e}\u{1f921}]/u;
-
-  const neg =
-    negativeTerms.filter((term) => text.includes(term)).length +
-    (negativeEmoji.test(content) ? 1 : 0);
-  const pos =
-    positiveTerms.filter((term) => text.includes(term)).length +
-    (positiveEmoji.test(content) ? 1 : 0);
-
-  if (neg > 0 && neg >= pos) return "negativo";
-  if (pos > 0) return "positivo";
-  return "neutro";
 }
 
 async function writeSnapshot(

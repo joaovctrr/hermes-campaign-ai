@@ -52,7 +52,7 @@ function clean(s: unknown): string {
 }
 
 function truncate(s: string, n: number) {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+  return s.length > n ? `${s.slice(0, n - 1)}...` : s;
 }
 
 export async function fetchInstagramMentions(handle: string, token: string): Promise<RawMention[]> {
@@ -77,18 +77,35 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
       directUrls: [`https://www.instagram.com/${handle.replace(/^@/, "")}/`],
       resultsType: "posts",
       resultsLimit: 20,
+      commentsLimit: 20,
+      maxComments: 20,
+      includeComments: true,
       addParentData: false,
     },
     token,
     20,
   );
   const out: RawMention[] = [];
+  const postsForFallback: Array<{
+    postUrl: string;
+    postId: string | null;
+    caption: string | null;
+    thumbnail: string | null;
+  }> = [];
   for (const p of items) {
     const postUrl = p.url ?? (p.shortCode ? `https://www.instagram.com/p/${p.shortCode}/` : null);
     const postId = p.id ?? p.shortCode ?? null;
     const cap = clean(p.caption);
     const truncatedCap = cap ? truncate(cap, 240) : null;
     const thumb = p.displayUrl ?? null;
+    if (postUrl) {
+      postsForFallback.push({
+        postUrl,
+        postId,
+        caption: truncatedCap,
+        thumbnail: thumb,
+      });
+    }
     // Keep the feed focused on interactions, not the account's own captions.
     for (const c of p.latestComments ?? []) {
       const text = clean(c.text);
@@ -107,7 +124,78 @@ export async function fetchInstagramMentions(handle: string, token: string): Pro
       });
     }
   }
-  return out;
+  if (out.length >= 8 || !postsForFallback.length) return dedupeMentions(out);
+
+  const fallback = await fetchInstagramCommentsForPosts(postsForFallback.slice(0, 8), token);
+  return dedupeMentions([...out, ...fallback]);
+}
+
+async function fetchInstagramCommentsForPosts(
+  posts: Array<{
+    postUrl: string;
+    postId: string | null;
+    caption: string | null;
+    thumbnail: string | null;
+  }>,
+  token: string,
+): Promise<RawMention[]> {
+  type Comment = {
+    id?: string;
+    text?: string;
+    comment?: string;
+    ownerUsername?: string;
+    username?: string;
+    timestamp?: string;
+    createdAt?: string;
+    postUrl?: string;
+    url?: string;
+    postShortCode?: string;
+  };
+
+  const items = await runActorSync<Comment>(
+    "apify/instagram-comment-scraper",
+    {
+      directUrls: posts.map((post) => post.postUrl),
+      resultsLimit: 120,
+      maxComments: 120,
+    },
+    token,
+    120,
+    120,
+  );
+
+  const byUrl = new Map(posts.map((post) => [post.postUrl, post]));
+  return items
+    .map((comment, index): RawMention | null => {
+      const text = clean(comment.text ?? comment.comment);
+      if (!text) return null;
+      const postUrl =
+        comment.postUrl ?? comment.url ?? posts[index % posts.length]?.postUrl ?? null;
+      const parent = postUrl ? byUrl.get(postUrl) : null;
+      return {
+        network: "instagram",
+        external_id: `ig_cmt_${comment.id ?? `${comment.postShortCode ?? parent?.postId ?? "post"}_${index}`}`,
+        author: comment.ownerUsername ?? comment.username ?? null,
+        content: text.slice(0, 800),
+        url: postUrl,
+        posted_at: comment.timestamp ?? comment.createdAt ?? null,
+        parent_post_id: parent?.postId ?? comment.postShortCode ?? null,
+        parent_post_url: postUrl,
+        parent_post_caption: parent?.caption ?? null,
+        parent_post_thumbnail: parent?.thumbnail ?? null,
+      };
+    })
+    .filter((item): item is RawMention => item !== null);
+}
+
+function dedupeMentions(items: RawMention[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.network}:${item.external_id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function fetchTwitterMentions(

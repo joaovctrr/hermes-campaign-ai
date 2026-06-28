@@ -1,11 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listMyNews, refreshRadar, getRadarCooldownStatus } from "@/lib/news.functions";
+import type React from "react";
+import { useMemo, useState } from "react";
+import {
+  addManualNewsFromUrl,
+  getRadarCooldownStatus,
+  listMyNews,
+  refreshRadar,
+} from "@/lib/news.functions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, ExternalLink, Sparkles, Lock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { RefreshCw, ExternalLink, Sparkles, Lock, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -29,6 +37,7 @@ function RadarPage() {
   const getNews = useServerFn(listMyNews);
   const refresh = useServerFn(refreshRadar);
   const cooldownFn = useServerFn(getRadarCooldownStatus);
+  const addManualNews = useServerFn(addManualNewsFromUrl);
   const { data: news = [], isLoading } = useQuery({ queryKey: ["news"], queryFn: () => getNews() });
   const { data: cd } = useQuery({
     queryKey: ["cooldown-radar"],
@@ -37,6 +46,34 @@ function RadarPage() {
   });
 
   const blocked = (cd?.remainingMs ?? 0) > 0;
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualTheme, setManualTheme] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [themeFilter, setThemeFilter] = useState("all");
+  const [urgencyFilter, setUrgencyFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+
+  const sources = useMemo(
+    () => [...new Set(news.map((item) => item.source).filter(Boolean) as string[])].sort(),
+    [news],
+  );
+  const themes = useMemo(
+    () => [...new Set(news.map((item) => item.theme).filter(Boolean) as string[])].sort(),
+    [news],
+  );
+  const filteredNews = useMemo(() => {
+    const minTime = dateFilterToTime(dateFilter);
+    return news.filter((item) => {
+      const timelineDate = item.published_at ?? item.created_at;
+      const time = new Date(timelineDate).getTime();
+      return (
+        (sourceFilter === "all" || item.source === sourceFilter) &&
+        (themeFilter === "all" || item.theme === themeFilter) &&
+        (urgencyFilter === "all" || item.urgency === urgencyFilter) &&
+        (!minTime || time >= minTime)
+      );
+    });
+  }, [dateFilter, news, sourceFilter, themeFilter, urgencyFilter]);
 
   const refreshMutation = useMutation({
     mutationFn: () => refresh(),
@@ -49,6 +86,24 @@ function RadarPage() {
       toast.error(e instanceof Error ? e.message : "Erro ao atualizar");
       qc.invalidateQueries({ queryKey: ["cooldown-radar"] });
     },
+  });
+
+  const manualMutation = useMutation({
+    mutationFn: () =>
+      addManualNews({
+        data: {
+          url: manualUrl,
+          theme: manualTheme || null,
+        },
+      }),
+    onSuccess: (r) => {
+      toast.success(r.message);
+      setManualUrl("");
+      setManualTheme("");
+      qc.invalidateQueries({ queryKey: ["news"] });
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao adicionar notícia manual."),
   });
 
   return (
@@ -83,6 +138,68 @@ function RadarPage() {
         </div>
       }
     >
+      <section className="mb-6 max-w-4xl rounded-xl border border-border bg-card p-5">
+        <div className="mb-3">
+          <h2 className="font-serif text-xl">Adicionar notícia por link</h2>
+          <p className="text-sm text-muted-foreground">
+            Use quando uma matéria importante não apareceu automaticamente no radar.
+          </p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_auto]">
+          <Input
+            placeholder="https://..."
+            value={manualUrl}
+            onChange={(e) => setManualUrl(e.target.value)}
+          />
+          <Input
+            placeholder="Tema opcional"
+            value={manualTheme}
+            onChange={(e) => setManualTheme(e.target.value)}
+          />
+          <Button
+            type="button"
+            disabled={manualMutation.isPending || !manualUrl.trim()}
+            onClick={() => manualMutation.mutate()}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {manualMutation.isPending ? "Analisando..." : "Adicionar"}
+          </Button>
+        </div>
+      </section>
+
+      {news.length > 0 && (
+        <section className="mb-6 grid max-w-4xl gap-3 md:grid-cols-4">
+          <FilterSelect value={sourceFilter} onChange={setSourceFilter}>
+            <option value="all">Todos os canais</option>
+            {sources.map((source) => (
+              <option key={source} value={source}>
+                {source}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect value={themeFilter} onChange={setThemeFilter}>
+            <option value="all">Todos os temas</option>
+            {themes.map((theme) => (
+              <option key={theme} value={theme}>
+                {theme}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect value={urgencyFilter} onChange={setUrgencyFilter}>
+            <option value="all">Todas urgências</option>
+            <option value="alta">Alta</option>
+            <option value="media">Média</option>
+            <option value="baixa">Sem urgência</option>
+          </FilterSelect>
+          <FilterSelect value={dateFilter} onChange={setDateFilter}>
+            <option value="all">Todas as datas</option>
+            <option value="24h">Últimas 24h</option>
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+          </FilterSelect>
+        </section>
+      )}
+
       {isLoading ? (
         <p className="text-muted-foreground">Carregando...</p>
       ) : news.length === 0 ? (
@@ -91,9 +208,15 @@ function RadarPage() {
           loading={refreshMutation.isPending}
           blocked={blocked}
         />
+      ) : filteredNews.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center max-w-4xl">
+          <p className="text-sm text-muted-foreground">
+            Nenhuma notícia encontrada com os filtros selecionados.
+          </p>
+        </div>
       ) : (
         <div className="grid gap-4 max-w-4xl">
-          {news.map((n) => {
+          {filteredNews.map((n) => {
             const urg = URGENCY[n.urgency] ?? URGENCY.baixa;
             const timelineDate = n.published_at ?? n.created_at;
             return (
@@ -139,6 +262,34 @@ function RadarPage() {
       )}
     </AppShell>
   );
+}
+
+function FilterSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      {children}
+    </select>
+  );
+}
+
+function dateFilterToTime(value: string) {
+  const day = 24 * 60 * 60 * 1000;
+  if (value === "24h") return Date.now() - day;
+  if (value === "7d") return Date.now() - 7 * day;
+  if (value === "30d") return Date.now() - 30 * day;
+  return 0;
 }
 
 function EmptyState({

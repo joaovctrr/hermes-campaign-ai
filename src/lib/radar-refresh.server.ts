@@ -17,7 +17,7 @@ export async function refreshRadarForUser(
 ): Promise<{ inserted: number; reason?: string }> {
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
-    .select("political_role, region, monitored_themes")
+    .select("political_role, region, preferred_news_state, monitored_themes")
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
@@ -26,8 +26,12 @@ export async function refreshRadarForUser(
   if (!themes.length) return { inserted: 0, reason: "no_themes" };
 
   const all: Raw[] = [];
+  const localSignal = profile?.preferred_news_state || profile?.region || "Brasil";
   for (const theme of themes.slice(0, 5)) {
-    all.push(...(await fetchGoogleNews(`${theme} ${profile?.region ?? "Brasil"}`, theme)));
+    all.push(...(await fetchGoogleNews(`${theme} ${localSignal}`, theme)));
+    if (profile?.region && profile.region !== localSignal) {
+      all.push(...(await fetchGoogleNews(`${theme} ${profile.region}`, theme)));
+    }
     all.push(...(await fetchGoogleNews(`${theme} Brasil when:1d`, theme)));
   }
   if (!all.length) return { inserted: 0, reason: "no_feed_results" };
@@ -53,7 +57,7 @@ export async function refreshRadarForUser(
 
   const prompt = `Você é Informa Ágora, analista de comunicação política. Para cada notícia abaixo, retorne UM JSON array (e SOMENTE o array, sem markdown) com objetos: {"i": <indice>, "summary": "<2 frases objetivas em PT-BR>", "urgency": "baixa"|"media"|"alta"}.
 
-Critério ALTA: crise, escândalo, denúncia, tragédia ou pauta de segurança/saúde com impacto direto na região "${profile?.region ?? "Brasil"}" e perfil "${profile?.political_role ?? "político"}".
+Critério ALTA: crise, escândalo, denúncia, tragédia ou pauta de segurança/saúde com impacto direto em "${localSignal}" ou na região "${profile?.region ?? "Brasil"}" e perfil "${profile?.political_role ?? "político"}".
 MEDIA: tema relevante sem crise.
 BAIXA: contexto/análise.
 

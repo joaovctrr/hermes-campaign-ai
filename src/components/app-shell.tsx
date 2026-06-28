@@ -6,6 +6,7 @@ import {
   Sparkles,
   Library,
   BarChart3,
+  PieChart,
   Settings,
   LogOut,
   BookOpenCheck,
@@ -21,6 +22,7 @@ const NAV = [
   { to: "/library", label: "Biblioteca", icon: Library },
   { to: "/history", label: "Memória Legislativa", icon: BookOpenCheck },
   { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
+  { to: "/analysis", label: "Análise de Dados", icon: PieChart },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
