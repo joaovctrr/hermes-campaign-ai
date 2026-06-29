@@ -65,7 +65,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         const { data: profiles, error } = await supabaseAdmin
           .from("profiles")
           .select(
-            "id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan",
+            "id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan, radar_interval_hours, sentiment_enabled",
           )
           .eq("onboarded", true);
         if (error) {
@@ -85,15 +85,26 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           });
         }
 
-        const planMin = (plan: string | null) =>
-          plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
-
         const all = profiles ?? [];
         let processed = 0;
         let skipped = 0;
         const results: Array<Record<string, unknown>> = [];
 
         for (const p of all) {
+          if (!p.sentiment_enabled) {
+            skipped++;
+            await logUser(
+              p.id,
+              "skipped",
+              "plan_locked",
+              p.radar_interval_hours ?? 24,
+              p.plan,
+              null,
+              null,
+            );
+            continue;
+          }
+
           const nets: string[] = p.monitored_networks ?? [];
           const hasSource =
             (nets.includes("instagram") && p.instagram_handle) ||
@@ -101,7 +112,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
             (nets.includes("tiktok") && p.tiktok_handle) ||
             (nets.includes("facebook") && p.facebook_handle);
 
-          const interval = Math.max(p.cron_interval_hours ?? 6, planMin(p.plan));
+          const interval = Math.max(p.cron_interval_hours ?? 6, p.radar_interval_hours ?? 24);
 
           if (!hasSource) {
             skipped++;

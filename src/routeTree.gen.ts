@@ -25,6 +25,7 @@ import { Route as ApiMediaImageRouteImport } from './routes/api/media/image'
 import { Route as AuthenticatedStudioIdRouteImport } from './routes/_authenticated/studio.$id'
 import { Route as ApiPublicHooksRefreshSentimentRouteImport } from './routes/api/public/hooks/refresh-sentiment'
 import { Route as ApiPublicHooksRefreshRadarRouteImport } from './routes/api/public/hooks/refresh-radar'
+import { Route as ApiPublicHooksExpireTrialsRouteImport } from './routes/api/public/hooks/expire-trials'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -108,6 +109,12 @@ const ApiPublicHooksRefreshRadarRoute =
     path: '/api/public/hooks/refresh-radar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksExpireTrialsRoute =
+  ApiPublicHooksExpireTrialsRouteImport.update({
+    id: '/api/public/hooks/expire-trials',
+    path: '/api/public/hooks/expire-trials',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/expire-trials': typeof ApiPublicHooksExpireTrialsRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -140,6 +148,7 @@ export interface FileRoutesByTo {
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/studio': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/expire-trials': typeof ApiPublicHooksExpireTrialsRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -159,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/expire-trials': typeof ApiPublicHooksExpireTrialsRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/studio/$id'
     | '/api/media/image'
     | '/studio/'
+    | '/api/public/hooks/expire-trials'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   fileRoutesByTo: FileRoutesByTo
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/studio/$id'
     | '/api/media/image'
     | '/studio'
+    | '/api/public/hooks/expire-trials'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   id:
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/studio/$id'
     | '/api/media/image'
     | '/_authenticated/studio/'
+    | '/api/public/hooks/expire-trials'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   fileRoutesById: FileRoutesById
@@ -222,6 +235,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiMediaImageRoute: typeof ApiMediaImageRoute
+  ApiPublicHooksExpireTrialsRoute: typeof ApiPublicHooksExpireTrialsRoute
   ApiPublicHooksRefreshRadarRoute: typeof ApiPublicHooksRefreshRadarRoute
   ApiPublicHooksRefreshSentimentRoute: typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -340,6 +354,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksRefreshRadarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/expire-trials': {
+      id: '/api/public/hooks/expire-trials'
+      path: '/api/public/hooks/expire-trials'
+      fullPath: '/api/public/hooks/expire-trials'
+      preLoaderRoute: typeof ApiPublicHooksExpireTrialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -377,6 +398,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiMediaImageRoute: ApiMediaImageRoute,
+  ApiPublicHooksExpireTrialsRoute: ApiPublicHooksExpireTrialsRoute,
   ApiPublicHooksRefreshRadarRoute: ApiPublicHooksRefreshRadarRoute,
   ApiPublicHooksRefreshSentimentRoute: ApiPublicHooksRefreshSentimentRoute,
 }

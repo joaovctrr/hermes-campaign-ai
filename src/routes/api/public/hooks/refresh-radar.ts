@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
 
         const { data: profiles, error: pErr } = await supabaseAdmin
           .from("profiles")
-          .select("id")
+          .select("id, plan, radar_interval_hours")
           .eq("onboarded", true);
         if (pErr) {
           return new Response(JSON.stringify({ error: pErr.message }), {
@@ -48,6 +48,21 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
         }> = [];
         for (const p of profiles ?? []) {
           try {
+            const interval = p.radar_interval_hours ?? 24;
+            const { data: last } = await supabaseAdmin
+              .from("news_items")
+              .select("created_at")
+              .eq("user_id", p.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const lastMs = last?.created_at ? new Date(last.created_at).getTime() : 0;
+            const dueMs = Date.now() - interval * 3600 * 1000 + 5 * 60 * 1000;
+            if (lastMs > dueMs) {
+              results.push({ user_id: p.id, inserted: 0, reason: "within_interval" });
+              continue;
+            }
+
             const r = await refreshRadarForUser(supabaseAdmin, p.id, googleApiKey);
             results.push({ user_id: p.id, ...r });
           } catch (e) {

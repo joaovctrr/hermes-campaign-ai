@@ -402,7 +402,7 @@ function HistoryPage() {
               <Input
                 placeholder={
                   camaraSearchMode === "author"
-                    ? "Ex: Subtenente Gonzaga"
+                    ? "Ex: Nome Sobrenome"
                     : camaraSearchMode === "number"
                       ? "Ex: PL 7645/2014"
                       : "Ex: segurança pública"

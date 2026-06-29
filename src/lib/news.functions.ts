@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
+import { formatCooldownRemaining } from "./plan-limits";
 import { createGoogleAiProvider } from "./ai-gateway.server";
+import { getPlanAccess } from "@/lib/plan-access.server";
 
 const ManualNewsSchema = z.object({
   url: z.string().trim().url("Informe um link válido"),
@@ -53,12 +54,8 @@ export const refreshRadar = createServerFn({ method: "POST" })
     if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
     // Plan cooldown
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
-    const cooldown = manualCooldownHours(profile?.plan);
+    const access = await getPlanAccess(context.supabase, context.userId);
+    const cooldown = access.manualRefreshEnabled ? 0 : access.radarIntervalHours;
     if (cooldown > 0) {
       const { data: last } = await context.supabase
         .from("news_items")
@@ -179,13 +176,9 @@ URL: ${data.url}`;
 export const getRadarCooldownStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
-    const plan = profile?.plan ?? "basico";
-    const cooldown = manualCooldownHours(plan);
+    const access = await getPlanAccess(context.supabase, context.userId);
+    const plan = access.plan;
+    const cooldown = access.manualRefreshEnabled ? 0 : access.radarIntervalHours;
     const { data: last } = await context.supabase
       .from("news_items")
       .select("created_at")

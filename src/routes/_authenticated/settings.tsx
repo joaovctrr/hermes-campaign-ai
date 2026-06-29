@@ -53,8 +53,14 @@ function SettingsPage() {
   const [keywordInput, setKeywordInput] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const plan = (profile?.plan ?? "basico") as "basico" | "avancado" | "enterprise";
-  const minInterval = plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
+  const plan = (profile?.plan ?? "basico") as
+    | "bloqueado"
+    | "basico"
+    | "trial_avancado"
+    | "avancado"
+    | "enterprise";
+  const minInterval =
+    plan === "enterprise" ? 6 : plan === "avancado" || plan === "trial_avancado" ? 12 : 24;
   const intervalOptions: Array<{ value: 6 | 12 | 24; label: string; disabled: boolean }> = [
     { value: 6, label: "A cada 6h", disabled: minInterval > 6 },
     { value: 12, label: "A cada 12h", disabled: minInterval > 12 },
@@ -442,7 +448,7 @@ function AdminDevTools({
   currentPlan,
   onChanged,
 }: {
-  currentPlan: "basico" | "avancado" | "enterprise";
+  currentPlan: "bloqueado" | "basico" | "trial_avancado" | "avancado" | "enterprise";
   onChanged: () => void;
 }) {
   const checkAdmin = useServerFn(amIAdmin);
@@ -455,13 +461,18 @@ function AdminDevTools({
 
   if (!isAdmin) return null;
 
-  const plans: Array<{ value: "basico" | "avancado" | "enterprise"; label: string }> = [
+  const plans: Array<{
+    value: "bloqueado" | "basico" | "trial_avancado" | "avancado" | "enterprise";
+    label: string;
+  }> = [
+    { value: "bloqueado", label: "Bloqueado" },
     { value: "basico", label: "Básico" },
+    { value: "trial_avancado", label: "Trial Avançado" },
     { value: "avancado", label: "Avançado" },
     { value: "enterprise", label: "Enterprise" },
   ];
 
-  async function pick(plan: "basico" | "avancado" | "enterprise") {
+  async function pick(plan: "bloqueado" | "basico" | "trial_avancado" | "avancado" | "enterprise") {
     setBusy(plan);
     try {
       await changePlan({ data: { plan } });

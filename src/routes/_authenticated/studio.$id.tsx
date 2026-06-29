@@ -22,6 +22,11 @@ const FORMATS = [
   { key: "twitter", label: "Twitter / X" },
 ] as const;
 
+const LLM_PROVIDERS = [
+  { key: "gemini", label: "Gemini" },
+  { key: "openai", label: "Chat-GPT" },
+] as const;
+
 function StudioDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
@@ -44,6 +49,7 @@ function StudioDetail() {
   });
 
   const [format, setFormat] = useState<(typeof FORMATS)[number]["key"]>("instagram");
+  const [provider, setProvider] = useState<(typeof LLM_PROVIDERS)[number]["key"]>("gemini");
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -53,7 +59,7 @@ function StudioDetail() {
   }, [latestForFormat?.content, latestForFormat?.id, format]);
 
   const mutation = useMutation({
-    mutationFn: () => gen({ data: { news_item_id: id, format } }),
+    mutationFn: () => gen({ data: { news_item_id: id, format, provider } }),
     onSuccess: (post) => {
       setDraft(post.content);
       qc.invalidateQueries({ queryKey: ["posts", id] });
@@ -185,6 +191,18 @@ function StudioDetail() {
                         : "Nenhuma versão gerada ainda."}
                     </p>
                     <div className="flex gap-2">
+                      <select
+                        value={provider}
+                        onChange={(e) => setProvider(e.target.value as typeof provider)}
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        aria-label="Modelo de IA"
+                      >
+                        {LLM_PROVIDERS.map((item) => (
+                          <option key={item.key} value={item.key}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
                       <Button onClick={copy} variant="outline" size="sm" disabled={!draft}>
                         {copied ? (
                           <Check className="h-3.5 w-3.5 mr-1" />

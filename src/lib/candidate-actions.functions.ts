@@ -5,6 +5,7 @@ import {
   replaceLegislativeMemoryChunks,
   searchLegislativeMemoryChunks,
 } from "@/lib/legislative-memory.server";
+import { assertFeature, getPlanAccess } from "@/lib/plan-access.server";
 
 const OptionalText = z
   .string()
@@ -268,6 +269,19 @@ export const uploadLegislativeDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => DocumentUploadSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (access.uploadFileLimit !== null) {
+      const { count, error: countError } = await context.supabase
+        .from("legislative_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", context.userId);
+      if (countError) throw new Error(countError.message);
+      assertFeature(
+        (count ?? 0) < access.uploadFileLimit,
+        `Limite de ${access.uploadFileLimit} arquivo(s) de memória legislativa atingido no seu plano.`,
+      );
+    }
+
     const parsed = await extractTextFromUpload(
       data.file_name,
       data.mime_type ?? "",

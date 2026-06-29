@@ -3,8 +3,10 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { searchLegislativeMemoryChunks } from "@/lib/legislative-memory.server";
+import { assertFeature, currentMonthStart, getPlanAccess } from "@/lib/plan-access.server";
 
 const FormatSchema = z.enum(["instagram", "tiktok", "twitter"]);
+const LlmProviderSchema = z.enum(["gemini", "openai"]);
 
 const FORMAT_INSTRUCTIONS: Record<z.infer<typeof FormatSchema>, string> = {
   instagram:
@@ -18,6 +20,13 @@ const FORMAT_INSTRUCTIONS: Record<z.infer<typeof FormatSchema>, string> = {
 const GenerateInput = z.object({
   news_item_id: z.string().uuid(),
   format: FormatSchema,
+  provider: LlmProviderSchema.default("gemini"),
+});
+
+const GenerateFromTopicInput = z.object({
+  topic: z.string().trim().min(8).max(1200),
+  format: FormatSchema,
+  provider: LlmProviderSchema.default("gemini"),
 });
 
 const NewsMemoryInput = z.object({
@@ -79,8 +88,28 @@ export const generatePost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => GenerateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
+    const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const openAiKey = process.env.OPENAI_API_KEY;
+    if (data.provider === "gemini" && !googleKey) {
+      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
+    }
+    if (data.provider === "openai" && !openAiKey) {
+      throw new Error("OPENAI_API_KEY ausente");
+    }
+
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (access.monthlyPostLimit !== null) {
+      const { count, error: countError } = await context.supabase
+        .from("generated_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", context.userId)
+        .gte("created_at", currentMonthStart());
+      if (countError) throw new Error(countError.message);
+      assertFeature(
+        (count ?? 0) < access.monthlyPostLimit,
+        `Limite mensal de ${access.monthlyPostLimit} postagens atingido no seu plano.`,
+      );
+    }
 
     const [{ data: profile }, { data: news }] = await Promise.all([
       context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle(),
@@ -101,9 +130,11 @@ export const generatePost = createServerFn({ method: "POST" })
     );
     const memoryContext = formatMemoryContext(memoryResults);
 
-    const { createGoogleAiProvider } = await import("./ai-gateway.server");
-    const google = createGoogleAiProvider(key);
-    const model = google("gemini-3-flash-preview");
+    const { createGoogleAiProvider, createOpenAiProvider } = await import("./ai-gateway.server");
+    const model =
+      data.provider === "openai"
+        ? createOpenAiProvider(openAiKey!)("gpt-4.1-mini")
+        : createGoogleAiProvider(googleKey!)("gemini-3-flash-preview");
 
     const system = `Você é Informa Ágora, estrategista de comunicação política de elite. Escreve em PT-BR brasileiro, com clareza institucional e impacto. NUNCA inventa fatos: trabalha apenas com a notícia e com a memória legislativa fornecida. Adapta o tom à persona do candidato. SEMPRE inclui a frase "Conteúdo produzido com auxílio de IA." ao final, em linha separada.`;
 
@@ -147,6 +178,100 @@ Produza o conteúdo final pronto para a equipe revisar e publicar.`;
       .insert({
         user_id: context.userId,
         news_item_id: news.id,
+        format: data.format,
+        content: text,
+      })
+      .select("*")
+      .single();
+    if (insErr) throw new Error(insErr.message);
+    return inserted;
+  });
+
+export const generatePostFromTopic = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => GenerateFromTopicInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const openAiKey = process.env.OPENAI_API_KEY;
+    if (data.provider === "gemini" && !googleKey) {
+      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
+    }
+    if (data.provider === "openai" && !openAiKey) {
+      throw new Error("OPENAI_API_KEY ausente");
+    }
+
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (access.monthlyPostLimit !== null) {
+      const { count, error: countError } = await context.supabase
+        .from("generated_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", context.userId)
+        .gte("created_at", currentMonthStart());
+      if (countError) throw new Error(countError.message);
+      assertFeature(
+        (count ?? 0) < access.monthlyPostLimit,
+        `Limite mensal de ${access.monthlyPostLimit} postagens atingido no seu plano.`,
+      );
+    }
+
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", context.userId)
+      .maybeSingle();
+
+    const memoryResults = await searchLegislativeMemoryChunks(
+      context.supabase,
+      context.userId,
+      data.topic,
+      8,
+    );
+    const memoryContext = formatMemoryContext(memoryResults);
+
+    const { createGoogleAiProvider, createOpenAiProvider } = await import("./ai-gateway.server");
+    const model =
+      data.provider === "openai"
+        ? createOpenAiProvider(openAiKey!)("gpt-4.1-mini")
+        : createGoogleAiProvider(googleKey!)("gemini-3-flash-preview");
+
+    const system = `Você é Informa Ágora, estrategista de comunicação política de elite. Escreve em PT-BR brasileiro, com clareza institucional e impacto. NUNCA inventa fatos: trabalha apenas com o assunto solicitado, o perfil do candidato e a memória legislativa fornecida. SEMPRE inclui a frase "Conteúdo produzido com auxílio de IA." ao final, em linha separada.`;
+
+    const userPrompt = `PERSONA DO CANDIDATO:
+- Nome: ${profile?.full_name ?? "—"}
+- Cargo: ${profile?.political_role ?? "—"}
+- Região de atuação: ${profile?.region ?? "—"}
+- Tom de voz: ${profile?.tone ?? "institucional e firme"}
+- Posicionamento: ${profile?.bio ?? "—"}
+
+ASSUNTO DE INTERESSE DO COMUNICADOR:
+${data.topic}
+
+MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE (RAG vetorial + busca textual):
+${memoryContext || "Nenhum trecho relevante encontrado na memória legislativa."}
+
+FORMATO:
+${FORMAT_INSTRUCTIONS[data.format]}
+
+Estratégia obrigatória:
+1. Trate o assunto como pauta própria, não como notícia de jornal.
+2. Identifique quais temas da memória do candidato se conectam ao assunto.
+3. Se houver conexão documentada, use como autoridade, coerência e prova de atuação.
+4. Se a conexão for fraca, não force autoria nem invente histórico.
+5. Transforme o assunto em uma proposta de posicionamento publicável, com gancho claro e CTA.
+
+Produza o conteúdo final pronto para a equipe revisar e publicar.`;
+
+    const { text } = await generateText({
+      model,
+      system,
+      prompt: userPrompt,
+    });
+
+    const { data: inserted, error: insErr } = await context.supabase
+      .from("generated_posts")
+      .insert({
+        user_id: context.userId,
+        news_item_id: null,
         format: data.format,
         content: text,
       })

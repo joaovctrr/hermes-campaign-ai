@@ -22,7 +22,7 @@ export const amIAdmin = createServerFn({ method: "GET" })
     return Boolean(data);
   });
 
-const PlanEnum = z.enum(["basico", "avancado", "enterprise"]);
+const PlanEnum = z.enum(["bloqueado", "basico", "trial_avancado", "avancado", "enterprise"]);
 
 export const setMyPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

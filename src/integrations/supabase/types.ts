@@ -268,20 +268,31 @@ export type Database = {
           cron_interval_hours: number;
           facebook_handle: string | null;
           full_name: string | null;
+          has_payment_method: boolean;
           id: string;
+          intelligence_enabled: boolean;
           instagram_handle: string | null;
+          manual_refresh_enabled: boolean;
+          max_users: number;
           mention_keywords: string[] | null;
           monitored_networks: string[];
           monitored_themes: string[] | null;
+          monthly_post_limit: number | null;
           onboarded: boolean;
           plan: string;
           preferred_news_neighborhood: string | null;
           preferred_news_state: string | null;
           political_role: string | null;
+          radar_interval_hours: number;
+          realtime_alerts_enabled: boolean;
           region: string | null;
+          sentiment_enabled: boolean;
+          subscription_status: string;
           tiktok_handle: string | null;
           tone: string | null;
+          trial_ends_at: string | null;
           twitter_handle: string | null;
+          upload_file_limit: number | null;
           updated_at: string;
         };
         Insert: {
@@ -290,20 +301,31 @@ export type Database = {
           cron_interval_hours?: number;
           facebook_handle?: string | null;
           full_name?: string | null;
+          has_payment_method?: boolean;
           id: string;
+          intelligence_enabled?: boolean;
           instagram_handle?: string | null;
+          manual_refresh_enabled?: boolean;
+          max_users?: number;
           mention_keywords?: string[] | null;
           monitored_networks?: string[];
           monitored_themes?: string[] | null;
+          monthly_post_limit?: number | null;
           onboarded?: boolean;
           plan?: string;
           preferred_news_neighborhood?: string | null;
           preferred_news_state?: string | null;
           political_role?: string | null;
+          radar_interval_hours?: number;
+          realtime_alerts_enabled?: boolean;
           region?: string | null;
+          sentiment_enabled?: boolean;
+          subscription_status?: string;
           tiktok_handle?: string | null;
           tone?: string | null;
+          trial_ends_at?: string | null;
           twitter_handle?: string | null;
+          upload_file_limit?: number | null;
           updated_at?: string;
         };
         Update: {
@@ -312,20 +334,31 @@ export type Database = {
           cron_interval_hours?: number;
           facebook_handle?: string | null;
           full_name?: string | null;
+          has_payment_method?: boolean;
           id?: string;
+          intelligence_enabled?: boolean;
           instagram_handle?: string | null;
+          manual_refresh_enabled?: boolean;
+          max_users?: number;
           mention_keywords?: string[] | null;
           monitored_networks?: string[];
           monitored_themes?: string[] | null;
+          monthly_post_limit?: number | null;
           onboarded?: boolean;
           plan?: string;
           preferred_news_neighborhood?: string | null;
           preferred_news_state?: string | null;
           political_role?: string | null;
+          radar_interval_hours?: number;
+          realtime_alerts_enabled?: boolean;
           region?: string | null;
+          sentiment_enabled?: boolean;
+          subscription_status?: string;
           tiktok_handle?: string | null;
           tone?: string | null;
+          trial_ends_at?: string | null;
           twitter_handle?: string | null;
+          upload_file_limit?: number | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -479,6 +512,10 @@ export type Database = {
       };
     };
     Functions: {
+      expire_trials_without_payment: {
+        Args: { _fallback_plan?: string };
+        Returns: number;
+      };
       get_my_cron_history: {
         Args: { _limit?: number };
         Returns: {

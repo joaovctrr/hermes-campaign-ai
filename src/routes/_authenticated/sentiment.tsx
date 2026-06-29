@@ -93,7 +93,8 @@ function SentimentPage() {
     !!profile?.facebook_handle ||
     (profile?.mention_keywords?.length ?? 0) > 0;
 
-  const blocked = (cd?.remainingMs ?? 0) > 0;
+  const planLocked = cd?.sentimentEnabled === false;
+  const blocked = planLocked || (cd?.remainingMs ?? 0) > 0;
 
   async function refresh() {
     setRefreshing(true);
@@ -141,11 +142,13 @@ function SentimentPage() {
             ) : (
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
             )}
-            {blocked
-              ? `Disponível em ${formatCooldownRemaining(cd!.remainingMs)}`
-              : refreshing
-                ? "Coletando..."
-                : "Atualizar agora"}
+            {planLocked
+              ? "Upgrade necessário"
+              : blocked
+                ? `Disponível em ${formatCooldownRemaining(cd!.remainingMs)}`
+                : refreshing
+                  ? "Coletando..."
+                  : "Atualizar agora"}
           </Button>
         </div>
       }
@@ -156,6 +159,16 @@ function SentimentPage() {
           <p className="text-sm text-muted-foreground">
             Vá em <strong>Configurações → Redes sociais monitoradas</strong> e adicione o handle de
             Instagram, X, TikTok ou Facebook.
+          </p>
+        </div>
+      )}
+
+      {planLocked && (
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 mb-6">
+          <h2 className="font-serif text-lg mb-1">Termômetro bloqueado no plano atual</h2>
+          <p className="text-sm text-muted-foreground">
+            A análise de sentimento e os gráficos sociais ficam disponíveis a partir do Plano
+            Avançado.
           </p>
         </div>
       )}

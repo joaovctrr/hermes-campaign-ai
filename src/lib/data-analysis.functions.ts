@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertFeature, getPlanAccess } from "@/lib/plan-access.server";
 
 type AnalysisSentiment = "positivo" | "neutro" | "negativo" | "crise";
 type AnalysisKind = "news" | "mention";
@@ -26,6 +27,12 @@ const DAY = 24 * 60 * 60 * 1000;
 export const getDataAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    assertFeature(
+      access.intelligenceEnabled,
+      "O Painel de Inteligência está disponível a partir do Plano Avançado.",
+    );
+
     const since7d = new Date(Date.now() - 7 * DAY).toISOString();
 
     const [{ data: news, error: newsError }, { data: mentions, error: mentionsError }] =

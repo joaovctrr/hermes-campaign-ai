@@ -2,22 +2,24 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
+import { assertFeature, getPlanAccess } from "@/lib/plan-access.server";
 
 export const refreshMySentiment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    assertFeature(
+      access.sentimentEnabled,
+      "Termômetro Social disponível a partir do Plano Avançado.",
+    );
+
     const apifyToken = process.env.APIFY_TOKEN;
     const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apifyToken) throw new Error("APIFY_TOKEN não configurado");
     if (!googleApiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY não configurado");
 
     // Plan-based cooldown
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
-    const cooldown = manualCooldownHours(profile?.plan);
+    const cooldown = manualCooldownHours(access.plan);
     if (cooldown > 0) {
       const { data: last } = await context.supabase
         .from("sentiment_snapshots")
@@ -44,6 +46,9 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
 export const getLatestSnapshot = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (!access.sentimentEnabled) return null;
+
     const { data, error } = await context.supabase
       .from("sentiment_snapshots")
       .select("*")
@@ -58,6 +63,9 @@ export const getLatestSnapshot = createServerFn({ method: "GET" })
 export const listSnapshotHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (!access.sentimentEnabled) return [];
+
     const { data, error } = await context.supabase
       .from("sentiment_snapshots")
       .select("id, created_at, total, positivo, neutro, negativo")
@@ -78,6 +86,9 @@ export const listMyMentions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => ListInput.parse(d ?? {}))
   .handler(async ({ data, context }) => {
+    const access = await getPlanAccess(context.supabase, context.userId);
+    if (!access.sentimentEnabled) return [];
+
     let q = context.supabase
       .from("social_mentions")
       .select(
@@ -97,12 +108,8 @@ export const listMyMentions = createServerFn({ method: "GET" })
 export const getManualCooldownStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
-    const plan = profile?.plan ?? "basico";
+    const access = await getPlanAccess(context.supabase, context.userId);
+    const plan = access.plan;
     const cooldown = manualCooldownHours(plan);
     const { data: last } = await context.supabase
       .from("sentiment_snapshots")
@@ -116,6 +123,7 @@ export const getManualCooldownStatus = createServerFn({ method: "GET" })
       cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
     return {
       plan,
+      sentimentEnabled: access.sentimentEnabled,
       cooldownHours: cooldown,
       remainingMs: remaining,
       lastAt: last?.created_at ?? null,

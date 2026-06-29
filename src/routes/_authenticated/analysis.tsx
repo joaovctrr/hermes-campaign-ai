@@ -36,7 +36,7 @@ type AnalysisItem = Analysis["items"][number];
 
 function DataAnalysisPage() {
   const analysisFn = useServerFn(getDataAnalysis);
-  const { data, isLoading } = useQuery({
+  const { data, error, isLoading } = useQuery({
     queryKey: ["data-analysis"],
     queryFn: () => analysisFn(),
   });
@@ -73,6 +73,8 @@ function DataAnalysisPage() {
     >
       {isLoading ? (
         <p className="text-muted-foreground">Carregando análise...</p>
+      ) : error ? (
+        <LockedAnalysis message={error instanceof Error ? error.message : "Recurso bloqueado."} />
       ) : !data || data.items.length === 0 ? (
         <EmptyAnalysis />
       ) : (
@@ -444,6 +446,21 @@ function EmptyAnalysis() {
         </Link>
         <Link to="/sentiment">
           <Button>Ir para o Termômetro</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function LockedAnalysis({ message }: { message: string }) {
+  return (
+    <div className="mx-auto max-w-2xl rounded-xl border border-dashed border-border bg-card p-12 text-center">
+      <Target className="mx-auto h-8 w-8 text-muted-foreground" />
+      <h2 className="mt-4 font-serif text-xl">Painel bloqueado no plano atual.</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+      <div className="mt-6 flex justify-center gap-3">
+        <Link to="/settings">
+          <Button>Ver opções de plano</Button>
         </Link>
       </div>
     </div>
