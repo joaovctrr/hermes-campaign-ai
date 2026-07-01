@@ -51,17 +51,36 @@ function DataAnalysisPage() {
   const bestTheme = data?.themes[0];
   const totalThemeCount = data?.themes.reduce((sum, item) => sum + item.count, 0) ?? 0;
 
-  const heatColor = useMemo(() => {
+  const headline = useMemo(() => {
     const negative = data?.kpis.negativePct ?? 0;
-    if (negative >= 45 || (data?.kpis.crisisCount ?? 0) > 0) return "text-destructive";
-    if (negative >= 25) return "text-gold-foreground";
-    return "text-emerald-600";
-  }, [data?.kpis.crisisCount, data?.kpis.negativePct]);
+    const positive = data?.kpis.positivePct ?? 0;
+    const neutral = data?.kpis.neutralPct ?? 0;
+    const crisis = data?.kpis.crisisCount ?? 0;
+    if (crisis > 0 || negative >= 30) {
+      return {
+        label: `${negative}% negativo/crise`,
+        tone: "text-destructive",
+        detail: crisis > 0 ? `${crisis} alerta(s) de crise` : "atenção reputacional",
+      };
+    }
+    if (positive >= neutral) {
+      return {
+        label: `${positive}% positivo`,
+        tone: "text-emerald-600",
+        detail: "ambiente favorável",
+      };
+    }
+    return {
+      label: `${neutral}% neutro`,
+      tone: "text-muted-foreground",
+      detail: "conversa sem sinal dominante",
+    };
+  }, [data?.kpis.crisisCount, data?.kpis.negativePct, data?.kpis.neutralPct, data?.kpis.positivePct]);
 
   return (
     <AppShell
       title="Análise de Dados"
-      subtitle="Painel tático com origem, tema, sentimento, geografia e relevância dos sinais coletados."
+      subtitle="Leitura executiva dos sinais coletados: clima, temas dominantes, riscos e próximos movimentos."
       actions={
         <Link to="/radar">
           <Button variant="outline" size="sm">
@@ -84,11 +103,12 @@ function DataAnalysisPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Sentimento geral das últimas 24h
+                    Leitura rápida das últimas 24h
                   </p>
-                  <div className={`mt-3 font-serif text-4xl ${heatColor}`}>
-                    {data.kpis.positivePct}% positivo
+                  <div className={`mt-3 font-serif text-4xl ${headline.tone}`}>
+                    {headline.label}
                   </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{headline.detail}</p>
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {data.kpis.total24} sinais em 24h
@@ -135,7 +155,7 @@ function DataAnalysisPage() {
             <div className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
                 <h2 className="font-serif text-xl">Tendência dos últimos 7 dias</h2>
-                <Badge variant="outline">linha do tempo</Badge>
+                <Badge variant="outline">evolução diária</Badge>
               </div>
               <div className="mt-5 flex h-44 items-end gap-2">
                 {data.trend.map((day) => {
@@ -161,7 +181,7 @@ function DataAnalysisPage() {
           <section className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
             <div className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-serif text-xl">Temas em alta</h2>
+                <h2 className="font-serif text-xl">O que dominou a conversa</h2>
                 {bestTheme && (
                   <Badge variant="outline">
                     pauta dominante: {bestTheme.theme} · {bestTheme.percent}%
@@ -201,7 +221,7 @@ function DataAnalysisPage() {
             </div>
 
             <div className="rounded-xl border border-border bg-card p-6">
-              <h2 className="font-serif text-xl">Top palavras-chave</h2>
+              <h2 className="font-serif text-xl">Palavras que explicam o momento</h2>
               <div className="mt-5 flex flex-wrap gap-2">
                 {data.keywords.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Sem volume suficiente ainda.</p>
@@ -239,7 +259,7 @@ function DataAnalysisPage() {
           <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-serif text-xl">Ranking de zonas de risco</h2>
+                <h2 className="font-serif text-xl">Onde exige atenção</h2>
                 <MapPin className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="mt-5 space-y-3">
@@ -274,7 +294,7 @@ function DataAnalysisPage() {
 
             <div className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
-                <h2 className="font-serif text-xl">Radar de opositores/aliados</h2>
+                <h2 className="font-serif text-xl">Atores citados no contexto</h2>
                 <Radio className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="mt-5 space-y-3">
@@ -310,7 +330,8 @@ function DataAnalysisPage() {
 
           <p className="text-xs text-muted-foreground">
             Gerado em {new Date(data.generatedAt).toLocaleString("pt-BR")}. A relevância combina
-            fonte, urgência, sentimento e confiança do classificador.
+            fonte, urgência, sentimento e volume. Use este painel para decidir prioridade, não como
+            relatório contábil.
           </p>
         </div>
       )}

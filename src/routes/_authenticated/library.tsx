@@ -5,14 +5,17 @@ import { useState, useMemo } from "react";
 import { listMyPosts, deletePost } from "@/lib/posts.functions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { Copy, Trash2, Instagram, Music2, Twitter } from "lucide-react";
+import { Copy, Trash2, Instagram, Music2, Twitter, Library, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/library")({
   component: LibraryPage,
 });
 
-const FORMAT_META: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {
+const FORMAT_META: Record<
+  string,
+  { label: string; Icon: React.ComponentType<{ className?: string }> }
+> = {
   instagram: { label: "Instagram", Icon: Instagram },
   tiktok: { label: "TikTok / Reels", Icon: Music2 },
   twitter: { label: "Thread X", Icon: Twitter },
@@ -24,7 +27,10 @@ function LibraryPage() {
   const del = useServerFn(deletePost);
   const [filter, setFilter] = useState<"all" | "instagram" | "tiktok" | "twitter">("all");
 
-  const { data: posts = [], isLoading } = useQuery({ queryKey: ["my-posts"], queryFn: () => getPosts() });
+  const { data: posts = [], isLoading } = useQuery({
+    queryKey: ["my-posts"],
+    queryFn: () => getPosts(),
+  });
 
   const filtered = useMemo(
     () => (filter === "all" ? posts : posts.filter((p) => p.format === filter)),
@@ -45,6 +51,27 @@ function LibraryPage() {
       title="Biblioteca de Conteúdo"
       subtitle="Histórico de todos os roteiros gerados pelo Informa Ágora."
     >
+      <section className="mb-6 grid gap-4 md:grid-cols-[1fr_auto]">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-start gap-3">
+            <Library className="mt-1 h-5 w-5 text-primary" />
+            <div>
+              <h2 className="font-serif text-xl">{posts.length} conteúdo(s) gerado(s)</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Organize roteiros, threads e carrosséis criados a partir do Radar ou de assuntos
+                próprios.
+              </p>
+            </div>
+          </div>
+        </div>
+        <Link to="/studio">
+          <Button className="h-full w-full md:w-auto">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Novo conteúdo
+          </Button>
+        </Link>
+      </section>
+
       <div className="mb-6 flex flex-wrap gap-2">
         {(["all", "instagram", "tiktok", "twitter"] as const).map((k) => (
           <button
@@ -67,16 +94,24 @@ function LibraryPage() {
         <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center max-w-xl">
           <p className="text-sm text-muted-foreground">
             Nada por aqui ainda. Vá ao{" "}
-            <Link to="/studio" className="underline text-foreground">Estúdio</Link> e gere seu primeiro post.
+            <Link to="/studio" className="underline text-foreground">
+              Estúdio
+            </Link>{" "}
+            e gere seu primeiro post.
           </p>
         </div>
       ) : (
-        <ul className="space-y-4">
+        <ul className="grid gap-4 xl:grid-cols-2">
           {filtered.map((p) => {
             const meta = FORMAT_META[p.format] ?? { label: p.format, Icon: Copy };
-            const news = (p as { news_items?: { title: string; theme: string | null; urgency: string } | null }).news_items;
+            const news = (
+              p as { news_items?: { title: string; theme: string | null; urgency: string } | null }
+            ).news_items;
             return (
-              <li key={p.id} className="rounded-xl border border-border bg-card p-5">
+              <li
+                key={p.id}
+                className="rounded-xl border border-border bg-card p-5 transition hover:border-primary/40 hover:bg-muted/20"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
@@ -88,7 +123,11 @@ function LibraryPage() {
                     {news && (
                       <p className="mt-2 font-serif text-base truncate">
                         {p.news_item_id ? (
-                          <Link to="/studio/$id" params={{ id: p.news_item_id }} className="hover:underline">
+                          <Link
+                            to="/studio/$id"
+                            params={{ id: p.news_item_id }}
+                            className="hover:underline"
+                          >
                             {news.title}
                           </Link>
                         ) : (
@@ -119,7 +158,7 @@ function LibraryPage() {
                     </Button>
                   </div>
                 </div>
-                <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground/90 line-clamp-[12]">
+                <pre className="mt-4 max-h-72 overflow-hidden whitespace-pre-wrap rounded-lg border border-border bg-background/60 p-4 font-sans text-sm leading-relaxed text-foreground/90">
                   {p.content}
                 </pre>
               </li>

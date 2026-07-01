@@ -14,6 +14,7 @@ import {
   Clock,
   Activity,
   Lightbulb,
+  Sparkles,
   ArrowDown,
   ArrowUp,
   Minus,
@@ -52,7 +53,10 @@ function DashboardPage() {
     queryFn: () => getInsights(),
     staleTime: 5 * 60 * 1000,
   });
-  const { data: feedback = [] } = useQuery({ queryKey: ["insight-feedback"], queryFn: () => getFeedback() });
+  const { data: feedback = [] } = useQuery({
+    queryKey: ["insight-feedback"],
+    queryFn: () => getFeedback(),
+  });
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyWindow, setHistoryWindow] = useState<"24h" | "7d">("24h");
@@ -109,7 +113,9 @@ function DashboardPage() {
         <div className="mb-6 rounded-xl border border-destructive/50 bg-destructive/5 p-5 flex items-start gap-4">
           <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="font-serif text-lg text-destructive">{critical.length} aviso(s) crítico(s)</h3>
+            <h3 className="font-serif text-lg text-destructive">
+              {critical.length} aviso(s) crítico(s)
+            </h3>
             <p className="text-sm text-muted-foreground mt-1">
               Notícias com urgência alta detectadas. Recomenda-se posicionamento ainda hoje.
             </p>
@@ -117,7 +123,9 @@ function DashboardPage() {
               {critical.slice(0, 3).map((n) => (
                 <li key={n.id} className="flex items-start gap-2">
                   <span className="text-destructive mt-1.5 h-1 w-1 rounded-full bg-destructive shrink-0" />
-                  <Link to="/studio/$id" params={{ id: n.id }} className="hover:underline">{n.title}</Link>
+                  <Link to="/studio/$id" params={{ id: n.id }} className="hover:underline">
+                    {n.title}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -126,17 +134,19 @@ function DashboardPage() {
       )}
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card title="Notícias nas últimas 24h" icon={Radio}>
+        <Card title="Sinais recentes" icon={Radio}>
           <div className="font-serif text-5xl">{stats?.last_24h ?? 0}</div>
           <p className="text-sm text-muted-foreground mt-2">
-            {stats?.total ?? 0} no total armazenadas no seu radar.
+            Notícias e sinais novos nas últimas 24h. {stats?.total ?? 0} itens no histórico.
           </p>
           <Link to="/radar" className="mt-4 inline-block">
-            <Button variant="outline" size="sm">Abrir radar</Button>
+            <Button variant="outline" size="sm">
+              Abrir radar
+            </Button>
           </Link>
         </Card>
 
-        <Card title="Pautas em alta" icon={TrendingUp}>
+        <Card title="Oportunidades de fala" icon={Sparkles}>
           {topThemes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sem dados ainda. Atualize o radar para começar.
@@ -151,13 +161,23 @@ function DashboardPage() {
               ))}
             </ul>
           )}
+          <Link to="/studio" className="mt-4 inline-block">
+            <Button variant="outline" size="sm">
+              Criar conteúdo
+            </Button>
+          </Link>
         </Card>
 
-        <Card title="Avisos críticos (24h)" icon={ShieldAlert}>
+        <Card title="Riscos urgentes" icon={ShieldAlert}>
           <div className="font-serif text-5xl text-destructive">{stats?.critical_24h ?? 0}</div>
           <p className="text-sm text-muted-foreground mt-2">
-            Pautas que exigem posicionamento imediato.
+            Pautas de alta urgência que podem exigir resposta pública.
           </p>
+          <Link to="/analysis" className="mt-4 inline-block">
+            <Button variant="outline" size="sm">
+              Ver análise
+            </Button>
+          </Link>
         </Card>
       </div>
 
@@ -189,8 +209,14 @@ function DashboardPage() {
         ) : !insights || insights.bucket7.total === 0 ? (
           <p className="text-sm text-muted-foreground">
             Sem menções suficientes ainda. Configure suas redes em{" "}
-            <Link to="/settings" className="underline">Configurações</Link> e atualize o{" "}
-            <Link to="/sentiment" className="underline">Termômetro</Link>.
+            <Link to="/settings" className="underline">
+              Configurações
+            </Link>{" "}
+            e atualize o{" "}
+            <Link to="/sentiment" className="underline">
+              Termômetro
+            </Link>
+            .
           </p>
         ) : (
           <div className="grid gap-6 lg:grid-cols-3">
@@ -243,7 +269,9 @@ function DashboardPage() {
                         <div className="mt-1.5 ml-6 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => saveFeedback.mutate({ text: r, window: "24h", useful: true })}
+                            onClick={() =>
+                              saveFeedback.mutate({ text: r, window: "24h", useful: true })
+                            }
                             disabled={saveFeedback.isPending}
                             className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition ${
                               current === true
@@ -255,7 +283,9 @@ function DashboardPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => saveFeedback.mutate({ text: r, window: "24h", useful: false })}
+                            onClick={() =>
+                              saveFeedback.mutate({ text: r, window: "24h", useful: false })
+                            }
                             disabled={saveFeedback.isPending}
                             className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition ${
                               current === false
@@ -279,7 +309,10 @@ function DashboardPage() {
           <div className="mt-6 border-t border-border pt-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium">Histórico (30 dias)</h3>
-              <Tabs value={historyWindow} onValueChange={(v) => setHistoryWindow(v as "24h" | "7d")}>
+              <Tabs
+                value={historyWindow}
+                onValueChange={(v) => setHistoryWindow(v as "24h" | "7d")}
+              >
                 <TabsList>
                   <TabsTrigger value="24h">24h</TabsTrigger>
                   <TabsTrigger value="7d">7d</TabsTrigger>
@@ -304,17 +337,23 @@ function DashboardPage() {
                   </thead>
                   <tbody>
                     {history.map((h) => {
-                      const themes = (h.top_themes as Array<{ theme: string; count: number }> | null) ?? [];
+                      const themes =
+                        (h.top_themes as Array<{ theme: string; count: number }> | null) ?? [];
                       return (
                         <tr key={h.id} className="border-t border-border">
-                          <td className="p-2 tabular-nums">{new Date(h.generated_at).toLocaleString("pt-BR")}</td>
+                          <td className="p-2 tabular-nums">
+                            {new Date(h.generated_at).toLocaleString("pt-BR")}
+                          </td>
                           <td className="p-2 capitalize">{h.sentiment_trend ?? "—"}</td>
                           <td className="p-2 text-right tabular-nums">{h.positivo_pct}</td>
                           <td className="p-2 text-right tabular-nums">{h.neutro_pct}</td>
                           <td className="p-2 text-right tabular-nums">{h.negativo_pct}</td>
                           <td className="p-2 text-right tabular-nums">{h.total_mentions}</td>
                           <td className="p-2 text-muted-foreground">
-                            {themes.slice(0, 3).map((t) => t.theme).join(", ") || "—"}
+                            {themes
+                              .slice(0, 3)
+                              .map((t) => t.theme)
+                              .join(", ") || "—"}
                           </td>
                         </tr>
                       );
@@ -333,20 +372,38 @@ function DashboardPage() {
 function TrendBadge({ trend }: { trend?: "piorando" | "estavel" | "melhorando" }) {
   if (!trend) return null;
   const map = {
-    piorando: { label: "Piorando", Icon: ArrowDown, cls: "text-destructive border-destructive/40 bg-destructive/5" },
-    melhorando: { label: "Melhorando", Icon: ArrowUp, cls: "text-emerald-600 border-emerald-600/40 bg-emerald-600/5" },
-    estavel: { label: "Estável", Icon: Minus, cls: "text-muted-foreground border-border bg-muted/40" },
+    piorando: {
+      label: "Piorando",
+      Icon: ArrowDown,
+      cls: "text-destructive border-destructive/40 bg-destructive/5",
+    },
+    melhorando: {
+      label: "Melhorando",
+      Icon: ArrowUp,
+      cls: "text-emerald-600 border-emerald-600/40 bg-emerald-600/5",
+    },
+    estavel: {
+      label: "Estável",
+      Icon: Minus,
+      cls: "text-muted-foreground border-border bg-muted/40",
+    },
   } as const;
   const { label, Icon, cls } = map[trend];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${cls}`}
+    >
       <Icon className="h-3.5 w-3.5" />
       {label}
     </span>
   );
 }
 
-function SentimentBars({ bucket }: { bucket: { positivo: number; neutro: number; negativo: number; total: number } }) {
+function SentimentBars({
+  bucket,
+}: {
+  bucket: { positivo: number; neutro: number; negativo: number; total: number };
+}) {
   const { positivo, neutro, negativo, total } = bucket;
   if (!total) return <p className="text-xs text-muted-foreground">Sem dados.</p>;
   const pct = (n: number) => Math.round((n / total) * 100);
@@ -359,12 +416,24 @@ function SentimentBars({ bucket }: { bucket: { positivo: number; neutro: number;
   );
 }
 
-function Bar({ label, value, pct, color }: { label: string; value: number; pct: number; color: string }) {
+function Bar({
+  label,
+  value,
+  pct,
+  color,
+}: {
+  label: string;
+  value: number;
+  pct: number;
+  color: string;
+}) {
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span>{label}</span>
-        <span className="text-muted-foreground tabular-nums">{value} ({pct}%)</span>
+        <span className="text-muted-foreground tabular-nums">
+          {value} ({pct}%)
+        </span>
       </div>
       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
         <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
@@ -373,23 +442,44 @@ function Bar({ label, value, pct, color }: { label: string; value: number; pct: 
   );
 }
 
-function MiniSeries({ series }: { series: Array<{ day: string; positivo: number; neutro: number; negativo: number }> }) {
-  const max = Math.max(
-    1,
-    ...series.map((s) => s.positivo + s.neutro + s.negativo),
-  );
+function MiniSeries({
+  series,
+}: {
+  series: Array<{ day: string; positivo: number; neutro: number; negativo: number }>;
+}) {
+  const max = Math.max(1, ...series.map((s) => s.positivo + s.neutro + s.negativo));
   return (
     <div className="flex items-end gap-1 h-24">
       {series.map((s) => {
         const total = s.positivo + s.neutro + s.negativo;
         const h = (total / max) * 100;
-        const dayLabel = new Date(s.day).toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3);
+        const dayLabel = new Date(s.day)
+          .toLocaleDateString("pt-BR", { weekday: "short" })
+          .slice(0, 3);
         return (
           <div key={s.day} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full flex flex-col-reverse rounded-sm overflow-hidden bg-muted" style={{ height: `${Math.max(h, 4)}%`, minHeight: 4 }}>
-              {s.positivo > 0 && <div className="bg-emerald-500" style={{ height: `${(s.positivo / Math.max(total, 1)) * 100}%` }} />}
-              {s.neutro > 0 && <div className="bg-muted-foreground/40" style={{ height: `${(s.neutro / Math.max(total, 1)) * 100}%` }} />}
-              {s.negativo > 0 && <div className="bg-destructive" style={{ height: `${(s.negativo / Math.max(total, 1)) * 100}%` }} />}
+            <div
+              className="w-full flex flex-col-reverse rounded-sm overflow-hidden bg-muted"
+              style={{ height: `${Math.max(h, 4)}%`, minHeight: 4 }}
+            >
+              {s.positivo > 0 && (
+                <div
+                  className="bg-emerald-500"
+                  style={{ height: `${(s.positivo / Math.max(total, 1)) * 100}%` }}
+                />
+              )}
+              {s.neutro > 0 && (
+                <div
+                  className="bg-muted-foreground/40"
+                  style={{ height: `${(s.neutro / Math.max(total, 1)) * 100}%` }}
+                />
+              )}
+              {s.negativo > 0 && (
+                <div
+                  className="bg-destructive"
+                  style={{ height: `${(s.negativo / Math.max(total, 1)) * 100}%` }}
+                />
+              )}
             </div>
             <span className="text-[10px] text-muted-foreground">{dayLabel}</span>
           </div>
@@ -399,7 +489,11 @@ function MiniSeries({ series }: { series: Array<{ day: string; positivo: number;
   );
 }
 
-function Card({ title, icon: Icon, children }: {
+function Card({
+  title,
+  icon: Icon,
+  children,
+}: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;

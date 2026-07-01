@@ -12,9 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
+import { Route as AuthenticatedTerritoryRouteImport } from './routes/_authenticated/territory'
+import { Route as AuthenticatedTelegramRouteImport } from './routes/_authenticated/telegram'
+import { Route as AuthenticatedSourcesRouteImport } from './routes/_authenticated/sources'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSentimentRouteImport } from './routes/_authenticated/sentiment'
 import { Route as AuthenticatedRadarRouteImport } from './routes/_authenticated/radar'
+import { Route as AuthenticatedMentionsRouteImport } from './routes/_authenticated/mentions'
 import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/logs'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
@@ -41,6 +46,26 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTerritoryRoute = AuthenticatedTerritoryRouteImport.update({
+  id: '/territory',
+  path: '/territory',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTelegramRoute = AuthenticatedTelegramRouteImport.update({
+  id: '/telegram',
+  path: '/telegram',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSourcesRoute = AuthenticatedSourcesRouteImport.update({
+  id: '/sources',
+  path: '/sources',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -54,6 +79,11 @@ const AuthenticatedSentimentRoute = AuthenticatedSentimentRouteImport.update({
 const AuthenticatedRadarRoute = AuthenticatedRadarRouteImport.update({
   id: '/radar',
   path: '/radar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMentionsRoute = AuthenticatedMentionsRouteImport.update({
+  id: '/mentions',
+  path: '/mentions',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLogsRoute = AuthenticatedLogsRouteImport.update({
@@ -124,9 +154,14 @@ export interface FileRoutesByFullPath {
   '/history': typeof AuthenticatedHistoryRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/logs': typeof AuthenticatedLogsRoute
+  '/mentions': typeof AuthenticatedMentionsRoute
   '/radar': typeof AuthenticatedRadarRoute
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/sources': typeof AuthenticatedSourcesRoute
+  '/telegram': typeof AuthenticatedTelegramRoute
+  '/territory': typeof AuthenticatedTerritoryRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
@@ -142,9 +177,14 @@ export interface FileRoutesByTo {
   '/history': typeof AuthenticatedHistoryRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/logs': typeof AuthenticatedLogsRoute
+  '/mentions': typeof AuthenticatedMentionsRoute
   '/radar': typeof AuthenticatedRadarRoute
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/sources': typeof AuthenticatedSourcesRoute
+  '/telegram': typeof AuthenticatedTelegramRoute
+  '/territory': typeof AuthenticatedTerritoryRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/studio': typeof AuthenticatedStudioIndexRoute
@@ -162,9 +202,14 @@ export interface FileRoutesById {
   '/_authenticated/history': typeof AuthenticatedHistoryRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
   '/_authenticated/logs': typeof AuthenticatedLogsRoute
+  '/_authenticated/mentions': typeof AuthenticatedMentionsRoute
   '/_authenticated/radar': typeof AuthenticatedRadarRoute
   '/_authenticated/sentiment': typeof AuthenticatedSentimentRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/sources': typeof AuthenticatedSourcesRoute
+  '/_authenticated/telegram': typeof AuthenticatedTelegramRoute
+  '/_authenticated/territory': typeof AuthenticatedTerritoryRoute
+  '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/_authenticated/studio/$id': typeof AuthenticatedStudioIdRoute
   '/api/media/image': typeof ApiMediaImageRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
@@ -182,9 +227,14 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/logs'
+    | '/mentions'
     | '/radar'
     | '/sentiment'
     | '/settings'
+    | '/sources'
+    | '/telegram'
+    | '/territory'
+    | '/whatsapp'
     | '/studio/$id'
     | '/api/media/image'
     | '/studio/'
@@ -200,9 +250,14 @@ export interface FileRouteTypes {
     | '/history'
     | '/library'
     | '/logs'
+    | '/mentions'
     | '/radar'
     | '/sentiment'
     | '/settings'
+    | '/sources'
+    | '/telegram'
+    | '/territory'
+    | '/whatsapp'
     | '/studio/$id'
     | '/api/media/image'
     | '/studio'
@@ -219,9 +274,14 @@ export interface FileRouteTypes {
     | '/_authenticated/history'
     | '/_authenticated/library'
     | '/_authenticated/logs'
+    | '/_authenticated/mentions'
     | '/_authenticated/radar'
     | '/_authenticated/sentiment'
     | '/_authenticated/settings'
+    | '/_authenticated/sources'
+    | '/_authenticated/telegram'
+    | '/_authenticated/territory'
+    | '/_authenticated/whatsapp'
     | '/_authenticated/studio/$id'
     | '/api/media/image'
     | '/_authenticated/studio/'
@@ -263,6 +323,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/whatsapp': {
+      id: '/_authenticated/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/territory': {
+      id: '/_authenticated/territory'
+      path: '/territory'
+      fullPath: '/territory'
+      preLoaderRoute: typeof AuthenticatedTerritoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/telegram': {
+      id: '/_authenticated/telegram'
+      path: '/telegram'
+      fullPath: '/telegram'
+      preLoaderRoute: typeof AuthenticatedTelegramRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sources': {
+      id: '/_authenticated/sources'
+      path: '/sources'
+      fullPath: '/sources'
+      preLoaderRoute: typeof AuthenticatedSourcesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -282,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/radar'
       fullPath: '/radar'
       preLoaderRoute: typeof AuthenticatedRadarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mentions': {
+      id: '/_authenticated/mentions'
+      path: '/mentions'
+      fullPath: '/mentions'
+      preLoaderRoute: typeof AuthenticatedMentionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/logs': {
@@ -370,9 +465,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
   AuthenticatedLogsRoute: typeof AuthenticatedLogsRoute
+  AuthenticatedMentionsRoute: typeof AuthenticatedMentionsRoute
   AuthenticatedRadarRoute: typeof AuthenticatedRadarRoute
   AuthenticatedSentimentRoute: typeof AuthenticatedSentimentRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSourcesRoute: typeof AuthenticatedSourcesRoute
+  AuthenticatedTelegramRoute: typeof AuthenticatedTelegramRoute
+  AuthenticatedTerritoryRoute: typeof AuthenticatedTerritoryRoute
+  AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedStudioIdRoute: typeof AuthenticatedStudioIdRoute
   AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
 }
@@ -383,9 +483,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
   AuthenticatedLogsRoute: AuthenticatedLogsRoute,
+  AuthenticatedMentionsRoute: AuthenticatedMentionsRoute,
   AuthenticatedRadarRoute: AuthenticatedRadarRoute,
   AuthenticatedSentimentRoute: AuthenticatedSentimentRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSourcesRoute: AuthenticatedSourcesRoute,
+  AuthenticatedTelegramRoute: AuthenticatedTelegramRoute,
+  AuthenticatedTerritoryRoute: AuthenticatedTerritoryRoute,
+  AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedStudioIdRoute: AuthenticatedStudioIdRoute,
   AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
 }

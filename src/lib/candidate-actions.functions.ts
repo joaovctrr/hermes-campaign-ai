@@ -93,6 +93,44 @@ const CamaraImportSchema = z.object({
     .transform((v) => (v ? v : null)),
 });
 
+const PublicDataSourceSchema = z.enum(["almg", "senado", "pbh", "cmbh", "ibge", "transparencia"]);
+
+const PublicDataSearchSchema = z.object({
+  source: PublicDataSourceSchema,
+  query: z.string().trim().min(2).max(160),
+  year: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : null)),
+  limit: z.number().int().min(1).max(20).default(10),
+});
+
+const PublicDataImportSchema = z.object({
+  source: PublicDataSourceSchema,
+  external_id: z.string().trim().min(1).max(500),
+  title: z.string().trim().min(1).max(240),
+  description: OptionalText,
+  theme: OptionalText,
+  source_url: z
+    .string()
+    .trim()
+    .url()
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
+  action_type: z.string().trim().min(1).max(120).default("Registro oficial"),
+  action_date: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
+  keywords: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+});
+
 export const listMyCandidateActions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -249,6 +287,46 @@ export const importCamaraProposition = createServerFn({ method: "POST" })
 
     if (error) throw new Error(error.message);
     await syncCandidateActionMemory(context.supabase, context.userId, inserted, "camara");
+    return inserted;
+  });
+
+export const searchPublicDataRecords = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => PublicDataSearchSchema.parse(d))
+  .handler(async ({ data }) => searchOfficialPublicData(data));
+
+export const importPublicDataRecord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => PublicDataImportSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    if (!hasUsefulSummary(data.description)) {
+      throw new Error("Esse registro oficial não tem resumo suficiente para ser importado.");
+    }
+
+    const sourceLabel = PUBLIC_DATA_SOURCES[data.source].label;
+    const keywords = [sourceLabel, data.source.toUpperCase(), data.theme, ...data.keywords].filter(
+      Boolean,
+    ) as string[];
+
+    const { data: inserted, error } = await context.supabase
+      .from("candidate_actions")
+      .insert({
+        user_id: context.userId,
+        action_type: data.action_type,
+        title: data.title,
+        description: data.description,
+        theme: data.theme,
+        source: sourceLabel,
+        source_url: data.source_url,
+        action_date: data.action_date,
+        legislature: data.action_date?.slice(0, 4) ?? null,
+        keywords: [...new Set(keywords)].slice(0, 30),
+      })
+      .select("*")
+      .single();
+
+    if (error) throw new Error(error.message);
+    await syncCandidateActionMemory(context.supabase, context.userId, inserted);
     return inserted;
   });
 
@@ -416,9 +494,14 @@ async function extractTextFromUpload(fileName: string, mimeType: string, content
   }
 
   if (extension === "pdf" || mimeType === "application/pdf") {
-    const pdfParse = (await import("pdf-parse")).default;
-    const result = await pdfParse(binary);
-    return { text: normalizeExtractedText(result.text ?? "") };
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: binary });
+    try {
+      const result = await parser.getText();
+      return { text: normalizeExtractedText(result.text ?? "") };
+    } finally {
+      await parser.destroy();
+    }
   }
 
   if (["doc", "docx"].includes(extension)) {
@@ -702,18 +785,6 @@ function getAuthorSearchVariants(query: string) {
   const normalized = normalizeComparable(trimmed);
   const variants = new Set<string>([trimmed]);
 
-  if (
-    normalized.includes("subtenente gonzaga") ||
-    (normalized.includes("luiz") &&
-      normalized.includes("gonzaga") &&
-      normalized.includes("ribeiro"))
-  ) {
-    variants.add("Subtenente Gonzaga");
-    variants.add("Luiz Gonzaga Ribeiro");
-    variants.add("Luiz Gonzaga");
-    variants.add("Gonzaga");
-  }
-
   const tokens = trimmed.split(/\s+/).filter((token) => token.length >= 3);
   if (tokens.length >= 2) variants.add(`${tokens[0]} ${tokens.at(-1)}`);
   if (tokens.length >= 1) variants.add(tokens.at(-1) ?? trimmed);
@@ -754,6 +825,587 @@ function expandComparableName(name: string) {
   }
 
   return tokens;
+}
+
+type PublicDataSource = z.infer<typeof PublicDataSourceSchema>;
+
+type PublicDataRecord = {
+  id: string;
+  source: PublicDataSource;
+  source_label: string;
+  title: string;
+  summary: string;
+  source_url: string | null;
+  action_type: string;
+  action_date: string | null;
+  keywords: string[];
+  importable: boolean;
+};
+
+const PUBLIC_DATA_SOURCES: Record<
+  PublicDataSource,
+  { label: string; actionType: string; home: string }
+> = {
+  almg: {
+    label: "ALMG - Dados Abertos",
+    actionType: "Registro legislativo estadual",
+    home: "https://dadosabertos.almg.gov.br",
+  },
+  senado: {
+    label: "Senado Federal - Dados Abertos",
+    actionType: "Registro legislativo federal",
+    home: "https://legis.senado.leg.br/dadosabertos",
+  },
+  pbh: {
+    label: "PBH - Dados Abertos",
+    actionType: "Dado publico municipal",
+    home: "https://dados.pbh.gov.br",
+  },
+  cmbh: {
+    label: "Camara Municipal de Belo Horizonte",
+    actionType: "Registro legislativo municipal",
+    home: "https://www.cmbh.mg.gov.br",
+  },
+  ibge: {
+    label: "IBGE - Localidades",
+    actionType: "Referencia territorial",
+    home: "https://servicodados.ibge.gov.br/api/docs/localidades",
+  },
+  transparencia: {
+    label: "Portal da Transparencia",
+    actionType: "Dado de transparencia publica",
+    home: "https://portaldatransparencia.gov.br/api-de-dados",
+  },
+};
+
+async function searchOfficialPublicData(input: z.infer<typeof PublicDataSearchSchema>) {
+  if (input.source === "almg") return searchAlmg(input.query, input.year, input.limit);
+  if (input.source === "senado") return searchSenado(input.query, input.year, input.limit);
+  if (input.source === "pbh") return searchPbh(input.query, input.limit);
+  if (input.source === "cmbh") return searchCmbh(input.query, input.limit);
+  if (input.source === "ibge") return searchIbge(input.query, input.limit);
+  return searchTransparencia(input.query, input.year, input.limit);
+}
+
+async function searchAlmg(query: string, year: string | null, limit: number) {
+  const source = PUBLIC_DATA_SOURCES.almg;
+  const endpoints = [
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/deputados", {
+      nome: query,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/parlamentares", {
+      nome: query,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/proposicoes/pesquisa", {
+      palavraChave: query,
+      ano: year,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/proposicoes/pesquisa", {
+      termo: query,
+      ano: year,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/projetos/pesquisa", {
+      palavraChave: query,
+      ano: year,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/legislacao/pesquisa", {
+      palavraChave: query,
+      ano: year,
+    }),
+    buildUrl("https://dadosabertos.almg.gov.br/api/v2/pronunciamentos/pesquisa", {
+      palavraChave: query,
+      ano: year,
+    }),
+  ];
+
+  for (const endpoint of endpoints) {
+    const rows = await fetchJsonRecords(endpoint);
+    const records = rows
+      .map((row, index) =>
+        normalizeGenericRecord("almg", row, {
+          fallbackId: `${endpoint}:${index}`,
+          fallbackTitle: `Registro da ALMG sobre "${query}"`,
+          actionType: source.actionType,
+          home: source.home,
+        }),
+      )
+      .filter((row) => isRelevantRecord(row, query, year))
+      .slice(0, limit);
+    if (records.length) return records;
+    await delay(1050);
+  }
+
+  return [
+    officialSearchPlaceholder("almg", query, source.home, [
+      "Nenhum registro estruturado foi encontrado na ALMG para esse termo.",
+      "Tente nome completo, numero do projeto, tema ou ano.",
+    ]),
+  ];
+}
+
+async function searchSenado(query: string, year: string | null, limit: number) {
+  const url = buildUrl("https://legis.senado.leg.br/dadosabertos/materia/pesquisa/lista", {
+    palavraChave: query,
+    ano: year,
+  });
+
+  const response = await fetch(url, {
+    headers: { accept: "application/json, application/xml, text/xml" },
+  });
+
+  if (!response.ok) {
+    throw new Error("Nao foi possivel consultar os Dados Abertos do Senado.");
+  }
+
+  const text = await response.text();
+  const json = parseMaybeJson(text);
+  const records = json
+    ? flattenJsonRecords(json)
+    : extractXmlBlocks(text, "Materia")
+        .concat(extractXmlBlocks(text, "materia"))
+        .map(parseSimpleXmlBlock);
+
+  return records
+    .map((row, index) =>
+      normalizeGenericRecord("senado", row, {
+        fallbackId: `${url}:${index}`,
+        fallbackTitle: `Materia no Senado sobre "${query}"`,
+        actionType: PUBLIC_DATA_SOURCES.senado.actionType,
+        home: PUBLIC_DATA_SOURCES.senado.home,
+      }),
+    )
+    .filter((row) => isRelevantRecord(row, query, year))
+    .slice(0, limit);
+}
+
+async function searchPbh(query: string, limit: number) {
+  const url = buildUrl("https://dados.pbh.gov.br/api/3/action/package_search", {
+    q: query,
+    rows: String(limit),
+  });
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("Nao foi possivel consultar os Dados Abertos da PBH.");
+
+  const payload = (await response.json()) as {
+    result?: { results?: Array<Record<string, unknown>> };
+  };
+
+  return (payload.result?.results ?? []).map((row) => ({
+    id: String(row.id ?? row.name ?? row.title),
+    source: "pbh" as const,
+    source_label: PUBLIC_DATA_SOURCES.pbh.label,
+    title: String(row.title ?? row.name ?? "Conjunto de dados da PBH"),
+    summary: cleanText(String(row.notes ?? row.description ?? "")),
+    source_url: row.name
+      ? `https://dados.pbh.gov.br/dataset/${row.name}`
+      : PUBLIC_DATA_SOURCES.pbh.home,
+    action_type: PUBLIC_DATA_SOURCES.pbh.actionType,
+    action_date: asDate(row.metadata_modified ?? row.metadata_created),
+    keywords: [query, "PBH", "dados abertos"],
+    importable: hasUsefulSummary(cleanText(String(row.notes ?? row.description ?? ""))),
+  }));
+}
+
+async function searchCmbh(query: string, limit: number) {
+  const endpoints = [
+    buildUrl("https://www.cmbh.mg.gov.br/atividade-legislativa/pesquisar-proposicoes", {
+      search_api_fulltext: query,
+    }),
+    buildUrl("https://www.cmbh.mg.gov.br/atividade-legislativa/pesquisar-legislacao", {
+      search_api_fulltext: query,
+    }),
+  ];
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, { headers: { accept: "text/html" } });
+    if (!response.ok) continue;
+    const html = await response.text();
+    const records = extractHtmlSearchResults(html, endpoint, query, "cmbh").slice(0, limit);
+    if (records.length) return records;
+  }
+
+  return [
+    officialSearchPlaceholder("cmbh", query, `https://www.cmbh.mg.gov.br/atividade-legislativa`, [
+      "A CMBH tem consultas oficiais no portal, mas nao ha API publica estavel detectada.",
+      "Importe este atalho e use o link para validar proposicoes, leis e ementas municipais.",
+    ]),
+  ];
+}
+
+async function searchIbge(query: string, limit: number) {
+  const normalized = normalizeComparable(query);
+  const uf = normalized
+    .match(
+      /\b(ac|al|ap|am|ba|ce|df|es|go|ma|mt|ms|mg|pa|pb|pr|pe|pi|rj|rn|rs|ro|rr|sc|sp|se|to)\b/,
+    )?.[1]
+    ?.toUpperCase();
+  const url = uf
+    ? `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`
+    : "https://servicodados.ibge.gov.br/api/v1/localidades/municipios";
+
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("Nao foi possivel consultar a API de Localidades do IBGE.");
+
+  const rows = (await response.json()) as Array<Record<string, unknown>>;
+  return rows
+    .filter((row) => normalizeComparable(String(row.nome ?? "")).includes(normalized))
+    .slice(0, limit)
+    .map((row) => {
+      const ufSigla = readDeepString(row, ["microrregiao", "mesorregiao", "UF", "sigla"]);
+      const stateName = readDeepString(row, ["microrregiao", "mesorregiao", "UF", "nome"]);
+      return {
+        id: String(row.id ?? row.nome),
+        source: "ibge" as const,
+        source_label: PUBLIC_DATA_SOURCES.ibge.label,
+        title: `Municipio: ${String(row.nome ?? query)}${ufSigla ? `/${ufSigla}` : ""}`,
+        summary: cleanText(
+          [
+            stateName ? `Estado: ${stateName}` : null,
+            "Referencia territorial oficial para cruzar noticias, demandas e bases municipais.",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+        source_url: `https://cidades.ibge.gov.br/brasil/${ufSigla?.toLowerCase() ?? ""}/${slugify(
+          String(row.nome ?? ""),
+        )}/panorama`,
+        action_type: PUBLIC_DATA_SOURCES.ibge.actionType,
+        action_date: null,
+        keywords: [String(row.nome ?? query), ufSigla, "IBGE", "territorio"].filter(
+          Boolean,
+        ) as string[],
+        importable: true,
+      };
+    });
+}
+
+async function searchTransparencia(query: string, year: string | null, limit: number) {
+  const token = process.env.PORTAL_TRANSPARENCIA_API_KEY;
+  if (!token) {
+    return [
+      officialSearchPlaceholder("transparencia", query, PUBLIC_DATA_SOURCES.transparencia.home, [
+        "O Portal da Transparencia exige chave de API para consultas automaticas.",
+        "Configure PORTAL_TRANSPARENCIA_API_KEY no .env para ativar busca direta.",
+      ]),
+    ];
+  }
+
+  const url = buildUrl("https://api.portaldatransparencia.gov.br/api-de-dados/contratos", {
+    dataInicial: year ? `01/01/${year}` : "01/01/2024",
+    dataFinal: year ? `31/12/${year}` : "31/12/2026",
+    pagina: "1",
+  });
+
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/json",
+      "chave-api-dados": token,
+    },
+  });
+  if (!response.ok) throw new Error("Nao foi possivel consultar o Portal da Transparencia.");
+
+  const rows = ((await response.json()) as Array<Record<string, unknown>>).filter((row) =>
+    normalizeComparable(JSON.stringify(row)).includes(normalizeComparable(query)),
+  );
+
+  return rows.slice(0, limit).map((row, index) =>
+    normalizeGenericRecord("transparencia", row, {
+      fallbackId: `${url}:${index}`,
+      fallbackTitle: `Registro de transparencia sobre "${query}"`,
+      actionType: PUBLIC_DATA_SOURCES.transparencia.actionType,
+      home: PUBLIC_DATA_SOURCES.transparencia.home,
+    }),
+  );
+}
+
+async function fetchJsonRecords(url: string) {
+  try {
+    const response = await fetch(url, { headers: officialFetchHeaders("application/json") });
+    if (!response.ok) return [];
+    const text = await response.text();
+    const payload = parseMaybeJson(text);
+    if (!payload) return [];
+    return flattenJsonRecords(payload);
+  } catch {
+    return [];
+  }
+}
+
+function flattenJsonRecords(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenJsonRecords);
+  }
+
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const usefulArrays = [
+    "dados",
+    "items",
+    "itens",
+    "results",
+    "resultado",
+    "materias",
+    "proposicoes",
+  ];
+  for (const key of usefulArrays) {
+    if (Array.isArray(record[key])) return flattenJsonRecords(record[key]);
+  }
+
+  const objectValues = Object.values(record).filter(Boolean);
+  for (const item of objectValues) {
+    if (Array.isArray(item)) {
+      const rows = flattenJsonRecords(item);
+      if (rows.length) return rows;
+    }
+  }
+
+  return [record];
+}
+
+function normalizeGenericRecord(
+  source: PublicDataSource,
+  row: Record<string, unknown>,
+  options: { fallbackId: string; fallbackTitle: string; actionType: string; home: string },
+): PublicDataRecord {
+  const title =
+    pickString(row, [
+      "titulo",
+      "title",
+      "ementa",
+      "descricao",
+      "Descricao",
+      "identificacao",
+      "nome",
+      "Nome",
+    ]) || options.fallbackTitle;
+  const summary = cleanText(
+    [
+      pickString(row, ["ementa", "Ementa", "resumo", "Resumo", "descricao", "Descricao", "texto"]),
+      pickString(row, ["situacao", "Situacao", "status", "despacho"]),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+  const date = asDate(
+    pickUnknown(row, [
+      "dataApresentacao",
+      "DataApresentacao",
+      "data",
+      "Data",
+      "dataAtualizacao",
+      "DataAtualizacao",
+      "dataLegislacao",
+      "DataLegislacao",
+    ]),
+  );
+  const url = pickString(row, [
+    "url",
+    "link",
+    "uri",
+    "LinkTextoOriginal",
+    "linkTextoOriginal",
+    "LinkTextoAtualizado",
+  ]);
+
+  return {
+    id: String(pickUnknown(row, ["id", "codigo", "cod", "numero", "Numero"]) ?? options.fallbackId),
+    source,
+    source_label: PUBLIC_DATA_SOURCES[source].label,
+    title,
+    summary,
+    source_url: url && isLikelyUrl(url) ? url : options.home,
+    action_type: options.actionType,
+    action_date: date,
+    keywords: [
+      source.toUpperCase(),
+      pickString(row, ["tipo", "Tipo", "siglaTipo", "assunto", "Assunto", "Indexacao"]),
+    ].filter(Boolean) as string[],
+    importable: hasUsefulSummary(summary),
+  };
+}
+
+function officialSearchPlaceholder(
+  source: PublicDataSource,
+  query: string,
+  url: string,
+  details: string[],
+): PublicDataRecord {
+  return {
+    id: `${source}:${query}:placeholder`,
+    source,
+    source_label: PUBLIC_DATA_SOURCES[source].label,
+    title: `Consulta oficial: ${query}`,
+    summary: details.join("\n"),
+    source_url: url,
+    action_type: PUBLIC_DATA_SOURCES[source].actionType,
+    action_date: null,
+    keywords: [query, PUBLIC_DATA_SOURCES[source].label],
+    importable: false,
+  };
+}
+
+function extractHtmlSearchResults(
+  html: string,
+  fallbackUrl: string,
+  query: string,
+  source: PublicDataSource,
+) {
+  const records: PublicDataRecord[] = [];
+  const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkRegex.exec(html)) && records.length < 20) {
+    const title = cleanText(stripHtml(match[2]));
+    if (title.length < 8 || !normalizeComparable(title).includes(normalizeComparable(query)))
+      continue;
+    const href = match[1].startsWith("http")
+      ? match[1]
+      : `${PUBLIC_DATA_SOURCES[source].home}${match[1].startsWith("/") ? "" : "/"}${match[1]}`;
+    records.push({
+      id: href,
+      source,
+      source_label: PUBLIC_DATA_SOURCES[source].label,
+      title,
+      summary: `Resultado encontrado no portal oficial para "${query}".`,
+      source_url: href || fallbackUrl,
+      action_type: PUBLIC_DATA_SOURCES[source].actionType,
+      action_date: null,
+      keywords: [query, PUBLIC_DATA_SOURCES[source].label],
+      importable: true,
+    });
+  }
+
+  return records;
+}
+
+function extractXmlBlocks(xml: string, tag: string) {
+  const regex = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(xml))) blocks.push(match[1]);
+  return blocks;
+}
+
+function parseSimpleXmlBlock(block: string) {
+  const row: Record<string, unknown> = {};
+  const regex = /<([A-Za-z0-9_:-]+)\b[^>]*>([\s\S]*?)<\/\1>/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(block))) {
+    const value = cleanText(stripHtml(match[2]));
+    if (value) row[match[1]] = decodeXml(value);
+  }
+  return row;
+}
+
+function parseMaybeJson(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function buildUrl(base: string, params: Record<string, string | null | undefined>) {
+  const url = new URL(base);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+function isRelevantRecord(record: PublicDataRecord, query: string, year: string | null) {
+  const text = normalizeComparable(
+    [record.title, record.summary, record.keywords.join(" ")].join(" "),
+  );
+  const relevantByQuery = normalizeComparable(query)
+    .split(" ")
+    .filter((term) => term.length >= 3)
+    .some((term) => text.includes(term));
+  const relevantByYear = !year || record.action_date?.startsWith(year) || text.includes(year);
+  return relevantByQuery && relevantByYear;
+}
+
+function hasUsefulSummary(summary: string | null | undefined) {
+  const normalized = cleanText(String(summary ?? ""));
+  if (normalized.length < 20) return false;
+
+  return !["registro oficial sem resumo detalhado", "sem resumo detalhado", "sem ementa"].some(
+    (placeholder) => normalizeComparable(normalized).includes(normalizeComparable(placeholder)),
+  );
+}
+
+function pickUnknown(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
+  }
+  return null;
+}
+
+function pickString(row: Record<string, unknown>, keys: string[]) {
+  const value = pickUnknown(row, keys);
+  return value === null ? "" : cleanText(String(value));
+}
+
+function asDate(value: unknown) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const iso = text.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (iso) return iso;
+  const br = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return null;
+}
+
+function cleanText(value: string) {
+  return decodeXml(value)
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ");
+}
+
+function decodeXml(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function isLikelyUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function readDeepString(value: unknown, path: string[]) {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return "";
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current ? String(current) : "";
+}
+
+function slugify(value: string) {
+  return normalizeComparable(value).replace(/\s+/g, "-");
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function officialFetchHeaders(accept: string) {
+  return {
+    accept,
+    "user-agent": "Agora-Informa/1.0 (public-data-research)",
+  };
 }
 
 async function syncCandidateActionMemory(

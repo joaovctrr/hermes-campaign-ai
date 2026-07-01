@@ -239,7 +239,7 @@ const PLANS = [
   },
   {
     name: "Enterprise",
-    role: "O Centro de Comando",
+    role: "O Painel",
     price: "R$ 2.497",
     desc: "Para prefeituras, campanhas majoritárias e diretórios que precisam operar em escala.",
     features: [

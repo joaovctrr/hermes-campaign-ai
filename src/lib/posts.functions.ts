@@ -152,7 +152,7 @@ NOTÍCIA-BASE (use como gancho, não copie):
 - Urgência: ${news.urgency}
 - Resumo: ${news.summary ?? "—"}
 
-MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE (RAG vetorial + busca textual):
+MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE:
 ${memoryContext || "Nenhum trecho relevante encontrado na memória legislativa."}
 
 FORMATO:
@@ -246,7 +246,7 @@ export const generatePostFromTopic = createServerFn({ method: "POST" })
 ASSUNTO DE INTERESSE DO COMUNICADOR:
 ${data.topic}
 
-MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE (RAG vetorial + busca textual):
+MEMÓRIA LEGISLATIVA DOCUMENTADA MAIS RELEVANTE:
 ${memoryContext || "Nenhum trecho relevante encontrado na memória legislativa."}
 
 FORMATO:

@@ -7,7 +7,7 @@ import { generatePostFromTopic } from "@/lib/posts.functions";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Copy, Check } from "lucide-react";
+import { Sparkles, Copy, Check, Newspaper, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/studio/")({
@@ -51,51 +51,66 @@ function StudioIndex() {
       title="Estúdio de Criação"
       subtitle="Gere conteúdo a partir de uma notícia ou de um assunto próprio conectado à memória legislativa."
     >
-      <section className="mb-8 max-w-4xl rounded-xl border border-border bg-card p-6">
-        <div className="mb-4">
-          <h2 className="font-serif text-xl">Gerar por assunto próprio</h2>
-          <p className="text-sm text-muted-foreground">
-            Use para pautas que não vieram do Radar. A IA ainda buscará conexão com a memória
-            legislativa do candidato.
-          </p>
+      <section className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
+        <div className="border-b border-border bg-muted/30 p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-border bg-background p-2 text-primary">
+              <Wand2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-xl">Gerar por assunto próprio</h2>
+              <p className="text-sm text-muted-foreground">
+                Use para pautas que não vieram do Radar. A IA ainda buscará conexão com a memória
+                legislativa do candidato.
+              </p>
+            </div>
+          </div>
         </div>
-        <Textarea
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          rows={4}
-          placeholder="Ex: posicionamento sobre segurança nas escolas municipais, cobrança por melhorias no bairro Centro..."
-        />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Select value={format} onChange={(value) => setFormat(value as typeof format)}>
-            <option value="instagram">Instagram (Carrossel)</option>
-            <option value="tiktok">TikTok / Reels</option>
-            <option value="twitter">Twitter / X</option>
-          </Select>
-          <Select value={provider} onChange={(value) => setProvider(value as typeof provider)}>
-            <option value="gemini">Gemini</option>
-            <option value="openai">Chat-GPT</option>
-          </Select>
-          <Button
-            type="button"
-            disabled={topicMutation.isPending || topic.trim().length < 8}
-            onClick={() => topicMutation.mutate()}
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            {topicMutation.isPending ? "Gerando..." : "Gerar conteúdo"}
-          </Button>
-          <Button type="button" variant="outline" disabled={!draft} onClick={copyDraft}>
-            {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-            {copied ? "Copiado" : "Copiar"}
-          </Button>
-        </div>
-        {draft && (
+        <div className="p-6">
+          <div className="mb-4">
+            <p className="text-sm text-muted-foreground">
+              Descreva o tema, o problema local, a cobrança ou o posicionamento que a equipe deseja
+              transformar em conteúdo.
+            </p>
+          </div>
           <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={14}
-            className="mt-4 font-mono text-sm leading-relaxed"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            rows={4}
+            placeholder="Ex: proposta para educação, prestação de contas do mandato, melhoria no bairro Centro..."
           />
-        )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Select value={format} onChange={(value) => setFormat(value as typeof format)}>
+              <option value="instagram">Instagram (Carrossel)</option>
+              <option value="tiktok">TikTok / Reels</option>
+              <option value="twitter">Twitter / X</option>
+            </Select>
+            <Select value={provider} onChange={(value) => setProvider(value as typeof provider)}>
+              <option value="gemini">Gemini</option>
+              <option value="openai">Chat-GPT</option>
+            </Select>
+            <Button
+              type="button"
+              disabled={topicMutation.isPending || topic.trim().length < 8}
+              onClick={() => topicMutation.mutate()}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {topicMutation.isPending ? "Gerando..." : "Gerar conteúdo"}
+            </Button>
+            <Button type="button" variant="outline" disabled={!draft} onClick={copyDraft}>
+              {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+              {copied ? "Copiado" : "Copiar"}
+            </Button>
+          </div>
+          {draft && (
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={14}
+              className="mt-4 font-mono text-sm leading-relaxed"
+            />
+          )}
+        </div>
       </section>
 
       {news.length === 0 ? (
@@ -106,23 +121,31 @@ function StudioIndex() {
           </Link>
         </div>
       ) : (
-        <ul className="grid gap-3 max-w-3xl">
-          {news.slice(0, 20).map((n) => (
-            <li key={n.id}>
-              <Link
-                to="/studio/$id"
-                params={{ id: n.id }}
-                className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4 hover:border-gold/40 transition"
-              >
-                <div className="min-w-0">
-                  <p className="font-serif text-base truncate">{n.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{n.source} · {n.theme}</p>
-                </div>
-                <Sparkles className="h-4 w-4 text-gold shrink-0" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <section>
+          <div className="mb-4 flex items-center gap-2">
+            <Newspaper className="h-4 w-4 text-primary" />
+            <h2 className="font-serif text-xl">Gerar a partir do Radar</h2>
+          </div>
+          <ul className="grid gap-3 xl:grid-cols-2">
+            {news.slice(0, 20).map((n) => (
+              <li key={n.id}>
+                <Link
+                  to="/studio/$id"
+                  params={{ id: n.id }}
+                  className="flex h-full items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:bg-muted/20 transition"
+                >
+                  <div className="min-w-0">
+                    <p className="font-serif text-base truncate">{n.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {n.source} · {n.theme}
+                    </p>
+                  </div>
+                  <Sparkles className="h-4 w-4 text-gold shrink-0" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </AppShell>
   );

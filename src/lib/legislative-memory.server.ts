@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { embed, embedMany } from "ai";
 import type { Database } from "@/integrations/supabase/types";
-import { createGoogleAiProvider } from "./ai-gateway.server";
+import { createGoogleAiProvider, createOpenAiProvider } from "./ai-gateway.server";
 
-const EMBEDDING_MODEL = "gemini-embedding-001";
+const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
+const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 768;
 
 export type LegislativeMemoryInput = {
@@ -112,45 +113,89 @@ export async function searchLegislativeMemoryChunks(
 }
 
 async function embedMemoryDocuments(values: string[]) {
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!key || !values.length) return [];
+  if (!values.length) return [];
+  const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+
+  if (googleKey) {
+    try {
+      const google = createGoogleAiProvider(googleKey);
+      const { embeddings } = await embedMany({
+        model: google.embedding(GEMINI_EMBEDDING_MODEL),
+        values: values.map(limitEmbeddingText),
+        providerOptions: {
+          google: {
+            taskType: "RETRIEVAL_DOCUMENT",
+            outputDimensionality: EMBEDDING_DIMENSIONS,
+          },
+        },
+      });
+      return embeddings;
+    } catch (error) {
+      console.warn("Gemini document embeddings failed, trying OpenAI fallback", error);
+    }
+  }
+
+  if (!openAiKey) return [];
 
   try {
-    const google = createGoogleAiProvider(key);
+    const openai = createOpenAiProvider(openAiKey);
     const { embeddings } = await embedMany({
-      model: google.embedding(EMBEDDING_MODEL),
+      model: openai.embedding(OPENAI_EMBEDDING_MODEL),
       values: values.map(limitEmbeddingText),
       providerOptions: {
-        google: {
-          taskType: "RETRIEVAL_DOCUMENT",
-          outputDimensionality: EMBEDDING_DIMENSIONS,
+        openai: {
+          dimensions: EMBEDDING_DIMENSIONS,
         },
       },
     });
     return embeddings;
-  } catch {
+  } catch (error) {
+    console.warn("OpenAI document embeddings failed", error);
     return [];
   }
 }
 
 async function embedMemoryQuery(value: string) {
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!key || !value.trim()) return null;
+  if (!value.trim()) return null;
+  const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+
+  if (googleKey) {
+    try {
+      const google = createGoogleAiProvider(googleKey);
+      const { embedding } = await embed({
+        model: google.embedding(GEMINI_EMBEDDING_MODEL),
+        value: limitEmbeddingText(value),
+        providerOptions: {
+          google: {
+            taskType: "RETRIEVAL_QUERY",
+            outputDimensionality: EMBEDDING_DIMENSIONS,
+          },
+        },
+      });
+      return embedding;
+    } catch (error) {
+      console.warn("Gemini query embedding failed, trying OpenAI fallback", error);
+    }
+  }
+
+  if (!openAiKey) return null;
 
   try {
-    const google = createGoogleAiProvider(key);
+    const openai = createOpenAiProvider(openAiKey);
     const { embedding } = await embed({
-      model: google.embedding(EMBEDDING_MODEL),
+      model: openai.embedding(OPENAI_EMBEDDING_MODEL),
       value: limitEmbeddingText(value),
       providerOptions: {
-        google: {
-          taskType: "RETRIEVAL_QUERY",
-          outputDimensionality: EMBEDDING_DIMENSIONS,
+        openai: {
+          dimensions: EMBEDDING_DIMENSIONS,
         },
       },
     });
     return embedding;
-  } catch {
+  } catch (error) {
+    console.warn("OpenAI query embedding failed", error);
     return null;
   }
 }

@@ -6,9 +6,14 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
+  MapPin,
   Menu,
+  MessageCircle,
+  MessageSquareWarning,
   Newspaper,
   PieChart,
+  Radio,
+  Send,
   Settings,
   Sparkles,
   X,
@@ -18,13 +23,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
 const NAV = [
-  { to: "/dashboard", label: "Centro de Comando", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Painel", icon: LayoutDashboard },
   { to: "/radar", label: "Radar de Notícias", icon: Newspaper },
+  { to: "/mentions", label: "Radar de Menções", icon: MessageSquareWarning },
+  { to: "/territory", label: "Monitoramento Territorial", icon: MapPin },
   { to: "/studio", label: "Estúdio de Criação", icon: Sparkles },
+  { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { to: "/telegram", label: "Telegram", icon: Send },
   { to: "/library", label: "Biblioteca", icon: Library },
   { to: "/history", label: "Memória Legislativa", icon: BookOpenCheck },
   { to: "/sentiment", label: "Termômetro Social", icon: BarChart3 },
   { to: "/analysis", label: "Análise de Dados", icon: PieChart },
+  { to: "/sources", label: "Fontes Monitoradas", icon: Radio },
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
@@ -126,14 +136,18 @@ function SidebarContent({
 }) {
   return (
     <>
-      <div className="p-6 border-b border-sidebar-border/40">
-        <Link to="/dashboard" onClick={onNavigate} className="flex items-center gap-2 pr-8">
+      <div className="border-b border-sidebar-border/40 px-5 py-6">
+        <Link
+          to="/dashboard"
+          onClick={onNavigate}
+          className="flex min-h-20 items-center justify-center"
+          aria-label="Ir para o painel"
+        >
           <img
             src={logo}
             alt="Informa Ágora"
-            className="h-11 w-auto object-contain brightness-0 invert"
+            className="max-h-24 w-full max-w-56 object-contain brightness-0 invert"
           />
-          <span className="font-serif text-xl">Informa Ágora</span>
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">

@@ -15,21 +15,67 @@ export async function refreshRadarForUser(
   userId: string,
   apiKey: string,
 ): Promise<{ inserted: number; reason?: string }> {
+  const db = supabase as SupabaseClient & {
+    // Supabase generated types are intentionally behind the new migration in this workspace.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    from: (table: string) => any;
+  };
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
     .select(
-      "political_role, region, preferred_news_state, preferred_news_neighborhood, monitored_themes",
+      "full_name, political_name, political_role, region, preferred_news_state, preferred_news_neighborhood, monitored_themes, mention_keywords",
     )
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
 
   const themes: string[] = profile?.monitored_themes ?? [];
-  if (!themes.length) return { inserted: 0, reason: "no_themes" };
 
   const all: Raw[] = [];
+  const { data: monitoredSources } = await db
+    .from("monitored_sources")
+    .select("name, url, active")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .limit(30);
+  const monitoredDomains = ((monitoredSources ?? []) as Array<{ url: string | null }>)
+    .map((source) => domainFromUrl(source.url))
+    .filter((domain): domain is string => Boolean(domain));
   const localSignal = profile?.preferred_news_state || profile?.region || "Brasil";
   const neighborhoodSignal = profile?.preferred_news_neighborhood?.trim();
+  const candidateTerms = [
+    profile?.political_name,
+    profile?.full_name,
+    ...((profile?.mention_keywords as string[] | null) ?? []),
+  ]
+    .filter((value): value is string => Boolean(value && value.trim().length >= 3))
+    .slice(0, 5);
+
+  for (const term of candidateTerms) {
+    all.push(...(await fetchGoogleNews(`"${term}" when:30d`, "Menção nacional ao candidato")));
+    all.push(...(await fetchGoogleNews(`"${term}" Brasil when:30d`, "Menção nacional ao candidato")));
+    all.push(...(await fetchGoogleNews(`"${term}" política when:30d`, "Menção nacional ao candidato")));
+    all.push(...(await fetchGoogleNews(`"${term}" ${localSignal} when:30d`, "Menção ao candidato")));
+    if (profile?.region && profile.region !== localSignal) {
+      all.push(
+        ...(await fetchGoogleNews(`"${term}" ${profile.region} when:30d`, "Menção ao candidato")),
+      );
+    }
+    for (const state of BRAZIL_STATE_TERMS) {
+      all.push(
+        ...(await fetchGoogleNews(`"${term}" "${state}" when:30d`, "Menção estadual ao candidato")),
+      );
+    }
+    for (const domain of monitoredDomains.slice(0, 30)) {
+      all.push(
+        ...(await fetchGoogleNews(
+          `"${term}" site:${domain} when:30d`,
+          "Menção em fonte monitorada",
+        )),
+      );
+    }
+  }
+
   for (const theme of themes.slice(0, 5)) {
     if (neighborhoodSignal) {
       all.push(...(await fetchGoogleNews(`${theme} ${neighborhoodSignal} ${localSignal}`, theme)));
@@ -40,12 +86,12 @@ export async function refreshRadarForUser(
     }
     all.push(...(await fetchGoogleNews(`${theme} Brasil when:1d`, theme)));
   }
-  if (!all.length) return { inserted: 0, reason: "no_feed_results" };
+  if (!all.length) return { inserted: 0, reason: themes.length ? "no_feed_results" : "no_terms" };
 
   const ranked = dedupeNews(all)
     .filter((n) => isFresh(n.pubDate))
     .sort((a, b) => newsTime(b.pubDate) - newsTime(a.pubDate))
-    .slice(0, 24);
+    .slice(0, 80);
   if (!ranked.length) return { inserted: 0, reason: "no_recent_results" };
 
   const urls = ranked.map((n) => n.link);
@@ -55,7 +101,7 @@ export async function refreshRadarForUser(
     .eq("user_id", userId)
     .in("url", urls);
   const existingSet = new Set((existing ?? []).map((r: { url: string | null }) => r.url));
-  const novel = ranked.filter((n) => !existingSet.has(n.link)).slice(0, 12);
+  const novel = ranked.filter((n) => !existingSet.has(n.link)).slice(0, 30);
   if (!novel.length) return { inserted: 0, reason: "already_fresh" };
 
   const google = createGoogleAiProvider(apiKey);
@@ -118,7 +164,7 @@ async function fetchGoogleNews(query: string, theme: string): Promise<Raw[]> {
     const res = await fetch(url, { headers: { "User-Agent": "InformaAgoraBot/1.0" } });
     if (!res.ok) return [];
     const xml = await res.text();
-    return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8).flatMap((m) => {
+    return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 15).flatMap((m) => {
       const block = m[1];
       const get = (tag: string) => {
         const r = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`).exec(block);
@@ -162,7 +208,7 @@ function newsTime(value?: string): number {
 
 function isFresh(value?: string): boolean {
   const time = newsTime(value);
-  return !time || time >= Date.now() - 3 * 24 * 60 * 60 * 1000;
+  return !time || time >= Date.now() - 7 * 24 * 60 * 60 * 1000;
 }
 
 function normalizeUrgency(value?: string): "alta" | "media" | "baixa" | null {
@@ -244,3 +290,42 @@ function inferNeighborhood(text: string, preferred: string | null) {
   if (preferred && text.toLowerCase().includes(preferred.toLowerCase())) return preferred;
   return null;
 }
+
+function domainFromUrl(value?: string | null) {
+  if (!value) return null;
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+const BRAZIL_STATE_TERMS = [
+  "Acre",
+  "Alagoas",
+  "Amapá",
+  "Amazonas",
+  "Bahia",
+  "Ceará",
+  "Distrito Federal",
+  "Espírito Santo",
+  "Goiás",
+  "Maranhão",
+  "Mato Grosso",
+  "Mato Grosso do Sul",
+  "Minas Gerais",
+  "Pará",
+  "Paraíba",
+  "Paraná",
+  "Pernambuco",
+  "Piauí",
+  "Rio de Janeiro",
+  "Rio Grande do Norte",
+  "Rio Grande do Sul",
+  "Rondônia",
+  "Roraima",
+  "Santa Catarina",
+  "São Paulo",
+  "Sergipe",
+  "Tocantins",
+];

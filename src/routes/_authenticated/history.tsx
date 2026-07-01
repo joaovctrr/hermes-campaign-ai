@@ -7,9 +7,11 @@ import {
   deleteCandidateAction,
   deleteLegislativeDocument,
   importCamaraProposition,
+  importPublicDataRecord,
   listMyCandidateActions,
   listMyLegislativeDocuments,
   searchCamaraPropositions,
+  searchPublicDataRecords,
   uploadLegislativeDocument,
 } from "@/lib/candidate-actions.functions";
 import { AppShell } from "@/components/app-shell";
@@ -18,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, FileText, Plus, Trash2, Upload, X } from "lucide-react";
+import { BookOpenCheck, ExternalLink, FileText, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/history")({
@@ -63,6 +65,12 @@ const EMPTY_FORM: FormState = {
   keywords: [],
 };
 
+const TESTED_PUBLIC_DATA_SOURCES = [
+  { value: "senado", label: "Senado", hint: "Matérias legislativas federais" },
+  { value: "pbh", label: "PBH Dados", hint: "Catálogo municipal de dados abertos" },
+  { value: "ibge", label: "IBGE", hint: "Municípios e referência territorial" },
+] as const;
+
 function HistoryPage() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -74,6 +82,8 @@ function HistoryPage() {
   const deleteDocument = useServerFn(deleteLegislativeDocument);
   const searchCamara = useServerFn(searchCamaraPropositions);
   const importCamara = useServerFn(importCamaraProposition);
+  const searchPublicData = useServerFn(searchPublicDataRecords);
+  const importPublicData = useServerFn(importPublicDataRecord);
 
   const { data: actions = [], isLoading } = useQuery({
     queryKey: ["candidate-actions"],
@@ -91,6 +101,11 @@ function HistoryPage() {
   const [camaraQuery, setCamaraQuery] = useState("");
   const [camaraYear, setCamaraYear] = useState("");
   const [camaraTheme, setCamaraTheme] = useState("");
+  const [publicSource, setPublicSource] =
+    useState<(typeof TESTED_PUBLIC_DATA_SOURCES)[number]["value"]>("senado");
+  const [publicQuery, setPublicQuery] = useState("");
+  const [publicYear, setPublicYear] = useState("");
+  const [publicTheme, setPublicTheme] = useState("");
 
   const themes = useMemo(() => {
     const set = new Set<string>();
@@ -184,6 +199,43 @@ function HistoryPage() {
       toast.error(e instanceof Error ? e.message : "Erro ao importar proposição da Câmara."),
   });
 
+  const publicSearchMutation = useMutation({
+    mutationFn: () =>
+      searchPublicData({
+        data: {
+          source: publicSource,
+          query: publicQuery,
+          year: publicYear,
+          limit: 10,
+        },
+      }),
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao consultar a base oficial."),
+  });
+
+  const publicImportMutation = useMutation({
+    mutationFn: (item: NonNullable<typeof publicSearchMutation.data>[number]) =>
+      importPublicData({
+        data: {
+          source: item.source,
+          external_id: item.id,
+          title: item.title,
+          description: item.summary,
+          theme: publicTheme || publicQuery,
+          source_url: item.source_url,
+          action_type: item.action_type,
+          action_date: item.action_date,
+          keywords: item.keywords ?? [],
+        },
+      }),
+    onSuccess: (action) => {
+      toast.success(`${action.title} importado para a memória legislativa.`);
+      qc.invalidateQueries({ queryKey: ["candidate-actions"] });
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao importar registro oficial."),
+  });
+
   function addKeyword() {
     const keyword = keywordInput.trim();
     if (!keyword || form.keywords.includes(keyword)) return;
@@ -211,6 +263,26 @@ function HistoryPage() {
       title="Memória Legislativa"
       subtitle="Cadastre atuações e documentos do candidato para a IA conectar notícias atuais com histórico real."
     >
+      <section className="mb-6 grid gap-4 md:grid-cols-3">
+        <SummaryCard
+          label="Atuações"
+          value={actions.length}
+          text="Registros manuais e importados da Câmara."
+        />
+        <SummaryCard
+          label="Documentos"
+          value={documents.length}
+          text="Arquivos usados como base de conhecimento."
+        />
+        <div className="rounded-xl border border-border bg-card p-5">
+          <BookOpenCheck className="h-5 w-5 text-primary" />
+          <h2 className="mt-3 font-serif text-xl">Base de autoridade</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Quanto mais evidências, melhor a IA conecta notícia atual com histórico real.
+          </p>
+        </div>
+      </section>
+
       <div className="grid gap-8 xl:grid-cols-[420px_1fr]">
         <div className="space-y-6">
           <form
@@ -405,7 +477,7 @@ function HistoryPage() {
                     ? "Ex: Nome Sobrenome"
                     : camaraSearchMode === "number"
                       ? "Ex: PL 7645/2014"
-                      : "Ex: segurança pública"
+                      : "Ex: educação, saúde, moradia"
                 }
                 value={camaraQuery}
                 onChange={(e) => setCamaraQuery(e.target.value)}
@@ -483,8 +555,123 @@ function HistoryPage() {
           <section className="rounded-xl border border-border bg-card p-6 space-y-4">
             <div>
               <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <ExternalLink className="h-3.5 w-3.5 text-gold" />
+                APIs testadas
+              </div>
+              <h2 className="mt-1 font-serif text-2xl">Outras fontes públicas</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fontes que retornaram dados úteis nos testes. ALMG, CMBH e Transparência ficam fora
+                até terem endpoint estável ou chave configurada.
+              </p>
+            </div>
+
+            <Field label="Base de consulta">
+              <select
+                value={publicSource}
+                onChange={(e) =>
+                  setPublicSource(
+                    e.target.value as (typeof TESTED_PUBLIC_DATA_SOURCES)[number]["value"],
+                  )
+                }
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {TESTED_PUBLIC_DATA_SOURCES.map((source) => (
+                  <option key={source.value} value={source.value}>
+                    {source.label} - {source.hint}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_96px]">
+              <Input
+                placeholder={
+                  publicSource === "ibge"
+                    ? "Ex: Belo Horizonte, Contagem, MG"
+                    : "Ex: educação, saúde, moradia"
+                }
+                value={publicQuery}
+                onChange={(e) => setPublicQuery(e.target.value)}
+              />
+              <Input
+                placeholder="Ano"
+                value={publicYear}
+                onChange={(e) => setPublicYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            <Input
+              placeholder="Tema ao importar (opcional)"
+              value={publicTheme}
+              onChange={(e) => setPublicTheme(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={publicSearchMutation.isPending || publicQuery.trim().length < 2}
+              onClick={() => publicSearchMutation.mutate()}
+              className="w-full"
+            >
+              {publicSearchMutation.isPending ? "Consultando..." : "Buscar na fonte testada"}
+            </Button>
+
+            {publicSearchMutation.isSuccess && (publicSearchMutation.data ?? []).length === 0 && (
+              <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                Nenhum registro encontrado nessa base. Tente outro termo ou ano.
+              </p>
+            )}
+
+            {(publicSearchMutation.data ?? []).length > 0 && (
+              <div className="space-y-3">
+                {publicSearchMutation.data?.map((item) => {
+                  const canImport = item.importable && hasUsefulPublicSummary(item.summary);
+
+                  return (
+                    <article
+                      key={`${item.source}:${item.id}`}
+                      className="rounded-lg border border-border p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{item.source_label}</Badge>
+                            {item.action_date && (
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(`${item.action_date}T00:00:00`).toLocaleDateString(
+                                  "pt-BR",
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="mt-2 text-sm font-medium">{item.title}</h3>
+                          <p className="mt-1 line-clamp-4 text-xs text-muted-foreground">
+                            {hasUsefulPublicSummary(item.summary)
+                              ? item.summary
+                              : "Sem resumo suficiente para importar com segurança."}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={publicImportMutation.isPending || !canImport}
+                          onClick={() => {
+                            if (canImport) publicImportMutation.mutate(item);
+                          }}
+                        >
+                          {canImport ? "Importar" : "Sem resumo"}
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
                 <Upload className="h-3.5 w-3.5 text-gold" />
-                RAG de documentos
+                Documentos de apoio
               </div>
               <h2 className="mt-1 font-serif text-2xl">Arquivos de aprendizado</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -677,7 +864,7 @@ function DocumentList({
                 <span className="truncate">{doc.file_name}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {formatBytes(doc.size_bytes ?? 0)} · {doc.chunk_count ?? 0} trecho(s) para RAG ·{" "}
+                {formatBytes(doc.size_bytes ?? 0)} · {doc.chunk_count ?? 0} trecho(s) de memória ·{" "}
                 {new Date(doc.created_at).toLocaleDateString("pt-BR")}
               </p>
             </div>
@@ -687,6 +874,16 @@ function DocumentList({
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, text }: { label: string; value: number; text: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 font-serif text-3xl">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
@@ -720,4 +917,10 @@ function relationBadgeVariant(level: string): "default" | "secondary" | "destruc
   if (level === "possible") return "secondary";
   if (level === "none") return "destructive";
   return "outline";
+}
+
+function hasUsefulPublicSummary(summary: string | null | undefined) {
+  const normalized = String(summary ?? "").trim();
+  if (normalized.length < 20) return false;
+  return !/registro oficial sem resumo detalhado|sem resumo detalhado|sem ementa/i.test(normalized);
 }
