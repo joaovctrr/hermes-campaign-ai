@@ -42,7 +42,9 @@ const ChannelInput = z.object({
   llm_provider: z.enum(["gemini", "openai"]).default("gemini"),
   response_tone: z.string().trim().max(300).optional().nullable(),
   agent_persona: z.enum(["candidate", "assessor", "office"]).default("assessor"),
-  response_style: z.enum(["acolhedor", "institucional", "combativo", "tecnico"]).default("acolhedor"),
+  response_style: z
+    .enum(["acolhedor", "institucional", "combativo", "tecnico"])
+    .default("acolhedor"),
   response_depth: z.enum(["curta", "media", "detalhada"]).default("curta"),
   creativity_level: z.enum(["conservadora", "equilibrada", "expressiva"]).default("equilibrada"),
   agent_instructions: z.string().trim().max(1200).optional().nullable(),

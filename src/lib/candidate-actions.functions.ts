@@ -279,7 +279,7 @@ export const importCamaraProposition = createServerFn({ method: "POST" })
         action_date: proposition.dataApresentacao?.slice(0, 10) ?? null,
         legislature: proposition.ano ? String(proposition.ano) : null,
         keywords: [proposition.siglaTipo, "Câmara dos Deputados", status?.descricaoSituacao].filter(
-          Boolean,
+          (value): value is string => Boolean(value),
         ),
       })
       .select("*")
@@ -305,7 +305,7 @@ export const importPublicDataRecord = createServerFn({ method: "POST" })
 
     const sourceLabel = PUBLIC_DATA_SOURCES[data.source].label;
     const keywords = [sourceLabel, data.source.toUpperCase(), data.theme, ...data.keywords].filter(
-      Boolean,
+      (value): value is string => Boolean(value),
     ) as string[];
 
     const { data: inserted, error } = await context.supabase
@@ -1072,7 +1072,7 @@ async function searchIbge(query: string, limit: number) {
         action_type: PUBLIC_DATA_SOURCES.ibge.actionType,
         action_date: null,
         keywords: [String(row.nome ?? query), ufSigla, "IBGE", "territorio"].filter(
-          Boolean,
+          (value): value is string => Boolean(value),
         ) as string[],
         importable: true,
       };

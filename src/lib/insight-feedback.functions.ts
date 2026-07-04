@@ -22,18 +22,16 @@ export const saveInsightFeedback = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => SaveSchema.parse(d))
   .handler(async ({ data, context }) => {
     const hash = await hashRecommendation(data.text);
-    const { error } = await context.supabase
-      .from("insight_feedback")
-      .upsert(
-        {
-          user_id: context.userId,
-          recommendation_text: data.text.slice(0, 800),
-          recommendation_hash: hash,
-          context_window: data.window,
-          useful: data.useful,
-        },
-        { onConflict: "user_id,recommendation_hash" },
-      );
+    const { error } = await context.supabase.from("insight_feedback").upsert(
+      {
+        user_id: context.userId,
+        recommendation_text: data.text.slice(0, 800),
+        recommendation_hash: hash,
+        context_window: data.window,
+        useful: data.useful,
+      },
+      { onConflict: "user_id,recommendation_hash" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true, hash };
   });

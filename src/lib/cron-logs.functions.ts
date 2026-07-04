@@ -8,7 +8,9 @@ export const getMyCronHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => Input.parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.rpc("get_my_cron_history", { _limit: data.limit });
+    const { data: rows, error } = await context.supabase.rpc("get_my_cron_history", {
+      _limit: data.limit,
+    });
     if (error) throw new Error(error.message);
     return (rows ?? []) as Array<{
       id: string;

@@ -1,22 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizePublicHook } from "@/lib/public-hook-auth.server";
 
 /**
- * Called every 3h by pg_cron. Authenticated via the project's anon key in
- * the `apikey` header (same pattern used by Supabase Data API). Runs the
- * radar refresh for every onboarded profile, then refreshes the dashboard
- * materialized view.
+ * Called every 3h by pg_cron. Authenticated via CRON_HOOK_SECRET in
+ * Authorization: Bearer, x-api-key or apikey. Runs the radar refresh for
+ * every onboarded profile, then refreshes the dashboard materialized view.
  */
 export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = request.headers.get("apikey") ?? request.headers.get("x-api-key");
-        if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const unauthorized = authorizePublicHook(request);
+        if (unauthorized) return unauthorized;
 
         const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
         if (!googleApiKey) {

@@ -53,9 +53,15 @@ export async function refreshRadarForUser(
 
   for (const term of candidateTerms) {
     all.push(...(await fetchGoogleNews(`"${term}" when:30d`, "Menção nacional ao candidato")));
-    all.push(...(await fetchGoogleNews(`"${term}" Brasil when:30d`, "Menção nacional ao candidato")));
-    all.push(...(await fetchGoogleNews(`"${term}" política when:30d`, "Menção nacional ao candidato")));
-    all.push(...(await fetchGoogleNews(`"${term}" ${localSignal} when:30d`, "Menção ao candidato")));
+    all.push(
+      ...(await fetchGoogleNews(`"${term}" Brasil when:30d`, "Menção nacional ao candidato")),
+    );
+    all.push(
+      ...(await fetchGoogleNews(`"${term}" política when:30d`, "Menção nacional ao candidato")),
+    );
+    all.push(
+      ...(await fetchGoogleNews(`"${term}" ${localSignal} when:30d`, "Menção ao candidato")),
+    );
     if (profile?.region && profile.region !== localSignal) {
       all.push(
         ...(await fetchGoogleNews(`"${term}" ${profile.region} when:30d`, "Menção ao candidato")),

@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizePublicHook } from "@/lib/public-hook-auth.server";
 
 /**
- * Called by pg_cron every 6h. Authenticated via Supabase publishable key.
+ * Called by pg_cron every 6h. Authenticated via CRON_HOOK_SECRET.
  * Runs Apify-backed sentiment refresh for each onboarded profile that has
  * at least one social handle and is past its plan/user-defined interval.
  * Writes structured run + per-user logs so users can audit the cron in the UI.
@@ -10,13 +11,9 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = request.headers.get("apikey") ?? request.headers.get("x-api-key");
-        if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const unauthorized = authorizePublicHook(request);
+        if (unauthorized) return unauthorized;
+
         const apifyToken = process.env.APIFY_TOKEN;
         const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
         if (!apifyToken || !googleApiKey) {

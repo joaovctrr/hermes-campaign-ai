@@ -20,7 +20,9 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 if (supabaseUrl.includes("your-project-ref") || serviceRoleKey.includes("your-service-role-key")) {
-  console.error("Atualize o .env com as credenciais reais do Supabase antes de rodar este comando.");
+  console.error(
+    "Atualize o .env com as credenciais reais do Supabase antes de rodar este comando.",
+  );
   process.exit(1);
 }
 
@@ -44,7 +46,9 @@ try {
 
 if (!user) {
   console.error(`Usuario nao encontrado no Supabase Auth: ${email}`);
-  console.error("Crie a conta primeiro pela tela /auth ou pelo painel do Supabase e rode novamente.");
+  console.error(
+    "Crie a conta primeiro pela tela /auth ou pelo painel do Supabase e rode novamente.",
+  );
   process.exit(1);
 }
 
@@ -59,7 +63,9 @@ const { error } = await supabase.from("user_roles").upsert(
 if (error) {
   if (error.message.includes("public.user_roles")) {
     console.error("A tabela public.user_roles ainda nao existe no Supabase remoto.");
-    console.error("Aplique as migrations em supabase/migrations antes de promover um administrador.");
+    console.error(
+      "Aplique as migrations em supabase/migrations antes de promover um administrador.",
+    );
   }
   console.error(`Erro ao promover admin: ${error.message}`);
   process.exit(1);
@@ -99,9 +105,7 @@ function loadDotEnv() {
     const [, key, rawValue = ""] = match;
     if (key in process.env) continue;
 
-    const value = rawValue
-      .trim()
-      .replace(/^(['"])(.*)\1$/, "$2");
+    const value = rawValue.trim().replace(/^(['"])(.*)\1$/, "$2");
 
     process.env[key] = value;
   }
@@ -117,7 +121,10 @@ function createSupabaseFetch(supabaseKey) {
       new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     }
 
-    if (isNewSupabaseApiKey(supabaseKey) && headers.get("Authorization") === `Bearer ${supabaseKey}`) {
+    if (
+      isNewSupabaseApiKey(supabaseKey) &&
+      headers.get("Authorization") === `Bearer ${supabaseKey}`
+    ) {
       headers.delete("Authorization");
     }
 

@@ -266,7 +266,7 @@ export const getTerritorialDashboard = createServerFn({ method: "GET" })
         theme: item.theme ?? "Outros",
         urgency: item.urgency,
         negative: ["negativa", "negativo", "risco reputacional", "ataque político"].includes(
-          item.sentiment,
+          item.sentiment ?? "",
         ),
         date: item.collected_at ?? new Date().toISOString(),
       })) ?? []),

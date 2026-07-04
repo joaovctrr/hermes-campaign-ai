@@ -168,14 +168,14 @@ function DashboardPage() {
           </Link>
         </Card>
 
-        <Card title="Riscos urgentes" icon={ShieldAlert}>
+        <Card title="Alertas para responder" icon={ShieldAlert}>
           <div className="font-serif text-5xl text-destructive">{stats?.critical_24h ?? 0}</div>
           <p className="text-sm text-muted-foreground mt-2">
-            Pautas de alta urgência que podem exigir resposta pública.
+            Pautas de alta urgência que merecem resposta ou acompanhamento hoje.
           </p>
-          <Link to="/analysis" className="mt-4 inline-block">
+          <Link to="/radar" className="mt-4 inline-block">
             <Button variant="outline" size="sm">
-              Ver análise
+              Ver alertas
             </Button>
           </Link>
         </Card>

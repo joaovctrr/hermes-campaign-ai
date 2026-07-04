@@ -89,7 +89,7 @@ function LibraryPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Carregando…</p>
+        <p className="text-sm text-muted-foreground">Carregando...</p>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center max-w-xl">
           <p className="text-sm text-muted-foreground">
@@ -158,7 +158,7 @@ function LibraryPage() {
                     </Button>
                   </div>
                 </div>
-                <pre className="mt-4 max-h-72 overflow-hidden whitespace-pre-wrap rounded-lg border border-border bg-background/60 p-4 font-sans text-sm leading-relaxed text-foreground/90">
+                <pre className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background/60 p-4 font-sans text-sm leading-relaxed text-foreground/90">
                   {p.content}
                 </pre>
               </li>
