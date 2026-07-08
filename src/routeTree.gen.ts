@@ -19,10 +19,15 @@ import { Route as AuthenticatedLogsRouteImport } from './routes/_authenticated/l
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio.index'
+<<<<<<< Updated upstream
 import { Route as ApiMediaImageRouteImport } from './routes/api/media/image'
+=======
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+>>>>>>> Stashed changes
 import { Route as AuthenticatedStudioIdRouteImport } from './routes/_authenticated/studio.$id'
 import { Route as ApiPublicHooksRefreshSentimentRouteImport } from './routes/api/public/hooks/refresh-sentiment'
 import { Route as ApiPublicHooksRefreshRadarRouteImport } from './routes/api/public/hooks/refresh-radar'
+import { Route as ApiPublicHooksAsaasRouteImport } from './routes/api/public/hooks/asaas'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -74,9 +79,15 @@ const AuthenticatedStudioIndexRoute =
     path: '/studio/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+<<<<<<< Updated upstream
 const ApiMediaImageRoute = ApiMediaImageRouteImport.update({
   id: '/api/media/image',
   path: '/api/media/image',
+=======
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+>>>>>>> Stashed changes
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedStudioIdRoute = AuthenticatedStudioIdRouteImport.update({
@@ -96,6 +107,11 @@ const ApiPublicHooksRefreshRadarRoute =
     path: '/api/public/hooks/refresh-radar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksAsaasRoute = ApiPublicHooksAsaasRouteImport.update({
+  id: '/api/public/hooks/asaas',
+  path: '/api/public/hooks/asaas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -107,8 +123,13 @@ export interface FileRoutesByFullPath {
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
+<<<<<<< Updated upstream
   '/api/media/image': typeof ApiMediaImageRoute
+=======
+  '/api/auth/$': typeof ApiAuthSplatRoute
+>>>>>>> Stashed changes
   '/studio/': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/asaas': typeof ApiPublicHooksAsaasRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -122,8 +143,13 @@ export interface FileRoutesByTo {
   '/sentiment': typeof AuthenticatedSentimentRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio/$id': typeof AuthenticatedStudioIdRoute
+<<<<<<< Updated upstream
   '/api/media/image': typeof ApiMediaImageRoute
+=======
+  '/api/auth/$': typeof ApiAuthSplatRoute
+>>>>>>> Stashed changes
   '/studio': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/asaas': typeof ApiPublicHooksAsaasRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -139,8 +165,13 @@ export interface FileRoutesById {
   '/_authenticated/sentiment': typeof AuthenticatedSentimentRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio/$id': typeof AuthenticatedStudioIdRoute
+<<<<<<< Updated upstream
   '/api/media/image': typeof ApiMediaImageRoute
+=======
+  '/api/auth/$': typeof ApiAuthSplatRoute
+>>>>>>> Stashed changes
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
+  '/api/public/hooks/asaas': typeof ApiPublicHooksAsaasRoute
   '/api/public/hooks/refresh-radar': typeof ApiPublicHooksRefreshRadarRoute
   '/api/public/hooks/refresh-sentiment': typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -156,8 +187,13 @@ export interface FileRouteTypes {
     | '/sentiment'
     | '/settings'
     | '/studio/$id'
+<<<<<<< Updated upstream
     | '/api/media/image'
+=======
+    | '/api/auth/$'
+>>>>>>> Stashed changes
     | '/studio/'
+    | '/api/public/hooks/asaas'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   fileRoutesByTo: FileRoutesByTo
@@ -171,8 +207,13 @@ export interface FileRouteTypes {
     | '/sentiment'
     | '/settings'
     | '/studio/$id'
+<<<<<<< Updated upstream
     | '/api/media/image'
+=======
+    | '/api/auth/$'
+>>>>>>> Stashed changes
     | '/studio'
+    | '/api/public/hooks/asaas'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   id:
@@ -187,8 +228,13 @@ export interface FileRouteTypes {
     | '/_authenticated/sentiment'
     | '/_authenticated/settings'
     | '/_authenticated/studio/$id'
+<<<<<<< Updated upstream
     | '/api/media/image'
+=======
+    | '/api/auth/$'
+>>>>>>> Stashed changes
     | '/_authenticated/studio/'
+    | '/api/public/hooks/asaas'
     | '/api/public/hooks/refresh-radar'
     | '/api/public/hooks/refresh-sentiment'
   fileRoutesById: FileRoutesById
@@ -197,7 +243,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+<<<<<<< Updated upstream
   ApiMediaImageRoute: typeof ApiMediaImageRoute
+=======
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiPublicHooksAsaasRoute: typeof ApiPublicHooksAsaasRoute
+>>>>>>> Stashed changes
   ApiPublicHooksRefreshRadarRoute: typeof ApiPublicHooksRefreshRadarRoute
   ApiPublicHooksRefreshSentimentRoute: typeof ApiPublicHooksRefreshSentimentRoute
 }
@@ -274,11 +325,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+<<<<<<< Updated upstream
     '/api/media/image': {
       id: '/api/media/image'
       path: '/api/media/image'
       fullPath: '/api/media/image'
       preLoaderRoute: typeof ApiMediaImageRouteImport
+=======
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+>>>>>>> Stashed changes
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/studio/$id': {
@@ -300,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/refresh-radar'
       fullPath: '/api/public/hooks/refresh-radar'
       preLoaderRoute: typeof ApiPublicHooksRefreshRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/asaas': {
+      id: '/api/public/hooks/asaas'
+      path: '/api/public/hooks/asaas'
+      fullPath: '/api/public/hooks/asaas'
+      preLoaderRoute: typeof ApiPublicHooksAsaasRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -334,7 +400,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+<<<<<<< Updated upstream
   ApiMediaImageRoute: ApiMediaImageRoute,
+=======
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiPublicHooksAsaasRoute: ApiPublicHooksAsaasRoute,
+>>>>>>> Stashed changes
   ApiPublicHooksRefreshRadarRoute: ApiPublicHooksRefreshRadarRoute,
   ApiPublicHooksRefreshSentimentRoute: ApiPublicHooksRefreshSentimentRoute,
 }

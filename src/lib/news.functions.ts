@@ -1,24 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
 
 export const listMyNews = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("news_items")
-      .select("*")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = await context.sql`
+      SELECT * FROM app.news_items
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    return rows ?? [];
   });
 
 export const getMyDashboardStats = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
+<<<<<<< Updated upstream
     const { data, error } = await context.supabase.rpc("get_my_dashboard_stats");
     if (error) throw new Error(error.message);
     const row = (
@@ -30,29 +30,43 @@ export const getMyDashboardStats = createServerFn({ method: "GET" })
       }> | null
     )?.[0];
     return row ?? { total: 0, last_24h: 0, critical_24h: 0, last_news_at: null };
+=======
+    const [row] = await context.sql`
+      SELECT total, last_24h, critical_24h, last_news_at
+      FROM app.dashboard_stats
+      WHERE user_id = ${context.userId}
+    `;
+    return (
+      (row as
+        | { total: number; last_24h: number; critical_24h: number; last_news_at: string | null }
+        | undefined) ?? {
+        total: 0,
+        last_24h: 0,
+        critical_24h: 0,
+        last_news_at: null,
+      }
+    );
+>>>>>>> Stashed changes
   });
 
 export const refreshRadar = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
     // Plan cooldown
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
+    const [profile] = await context.sql`
+      SELECT plan FROM app.profiles WHERE id = ${context.userId}
+    `;
     const cooldown = manualCooldownHours(profile?.plan);
     if (cooldown > 0) {
-      const { data: last } = await context.supabase
-        .from("news_items")
-        .select("created_at")
-        .eq("user_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [last] = await context.sql`
+        SELECT created_at FROM app.news_items
+        WHERE user_id = ${context.userId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
       if (last?.created_at) {
         const elapsed = Date.now() - new Date(last.created_at).getTime();
         const remaining = cooldown * 3600000 - elapsed;
@@ -65,7 +79,7 @@ export const refreshRadar = createServerFn({ method: "POST" })
     }
 
     const { refreshRadarForUser } = await import("./radar-refresh.server");
-    const result = await refreshRadarForUser(context.supabase, context.userId, key);
+    const result = await refreshRadarForUser(context.sql, context.userId, key);
     if (result.reason === "no_themes") {
       throw new Error("Cadastre temas monitorados nas Configurações antes de atualizar o radar.");
     }
@@ -82,22 +96,19 @@ export const refreshRadar = createServerFn({ method: "POST" })
   });
 
 export const getRadarCooldownStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
+    const [profile] = await context.sql`
+      SELECT plan FROM app.profiles WHERE id = ${context.userId}
+    `;
     const plan = profile?.plan ?? "basico";
     const cooldown = manualCooldownHours(plan);
-    const { data: last } = await context.supabase
-      .from("news_items")
-      .select("created_at")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [last] = await context.sql`
+      SELECT created_at FROM app.news_items
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
     const lastAt = last?.created_at ? new Date(last.created_at).getTime() : 0;
     const remaining =
       cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;
@@ -105,15 +116,12 @@ export const getRadarCooldownStatus = createServerFn({ method: "GET" })
   });
 
 export const getNewsItem = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: item, error } = await context.supabase
-      .from("news_items")
-      .select("*")
-      .eq("id", data.id)
-      .eq("user_id", context.userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return item;
+    const [item] = await context.sql`
+      SELECT * FROM app.news_items
+      WHERE id = ${data.id} AND user_id = ${context.userId}
+    `;
+    return item ?? null;
   });

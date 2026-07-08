@@ -1,6 +1,10 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+<<<<<<< Updated upstream
 import { supabase } from "@/integrations/supabase/client";
+=======
+import { authClient } from "@/lib/auth-client";
+>>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,8 +29,8 @@ function AuthPage() {
 
   // Se já estiver logado, vai para dashboard
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user && pathname === "/auth") {
+    authClient.getSession().then(({ data }) => {
+      if (data?.user && pathname === "/auth") {
         navigate({ to: "/dashboard" });
       }
     });
@@ -36,12 +40,12 @@ function AuthPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await authClient.signIn.email({
       email: String(fd.get("email")),
       password: String(fd.get("password")),
     });
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(error.message ?? "Falha no login");
     toast.success("Bem-vindo de volta.");
     navigate({ to: "/dashboard" });
   }
@@ -50,24 +54,27 @@ function AuthPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { error } = await authClient.signUp.email({
       email: String(fd.get("email")),
       password: String(fd.get("password")),
-      options: {
-        data: { full_name: String(fd.get("full_name")) },
-        emailRedirectTo: window.location.origin + "/dashboard",
-      },
+      name: String(fd.get("full_name")),
     });
     setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Conta criada. Verifique seu e-mail se a confirmação estiver ativa.");
+    if (error) return toast.error(error.message ?? "Falha ao criar conta");
+    toast.success("Conta criada.");
     navigate({ to: "/dashboard" });
   }
 
   async function handleGoogle() {
+<<<<<<< Updated upstream
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin + "/auth" },
+=======
+    const { error } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: window.location.origin + "/dashboard",
+>>>>>>> Stashed changes
     });
     if (error) toast.error(error.message ?? "Falha no login com Google");
   }

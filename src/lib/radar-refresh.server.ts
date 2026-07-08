@@ -1,6 +1,11 @@
 import { generateText } from "ai";
+<<<<<<< Updated upstream
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createGoogleAiProvider } from "./ai-gateway.server";
+=======
+import type { Sql } from "@/db/client.server";
+import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+>>>>>>> Stashed changes
 
 type Raw = { title: string; link: string; source: string; pubDate?: string; theme: string };
 
@@ -8,19 +13,16 @@ type Raw = { title: string; link: string; source: string; pubDate?: string; them
  * Server-only helper. Fetches Google News for each monitored theme,
  * deduplicates against the DB, summarizes via Google AI and inserts.
  * Returns the count of inserted rows. Designed to be called from both
- * the authenticated server function and the pg_cron webhook.
+ * the authenticated server function and the cron webhook.
  */
 export async function refreshRadarForUser(
-  supabase: SupabaseClient,
+  sql: Sql,
   userId: string,
   apiKey: string,
 ): Promise<{ inserted: number; reason?: string }> {
-  const { data: profile, error: pErr } = await supabase
-    .from("profiles")
-    .select("political_role, region, monitored_themes")
-    .eq("id", userId)
-    .maybeSingle();
-  if (pErr) throw new Error(pErr.message);
+  const [profile] = await sql`
+    SELECT political_role, region, monitored_themes FROM app.profiles WHERE id = ${userId}
+  `;
 
   const themes: string[] = profile?.monitored_themes ?? [];
   if (!themes.length) return { inserted: 0, reason: "no_themes" };
@@ -53,12 +55,10 @@ export async function refreshRadarForUser(
   if (!all.length) return { inserted: 0, reason: "no_feed_results" };
 
   const urls = all.map((n) => n.link);
-  const { data: existing } = await supabase
-    .from("news_items")
-    .select("url")
-    .eq("user_id", userId)
-    .in("url", urls);
-  const existingSet = new Set((existing ?? []).map((r: { url: string | null }) => r.url));
+  const existing = await sql`
+    SELECT url FROM app.news_items WHERE user_id = ${userId} AND url = ANY(${urls})
+  `;
+  const existingSet = new Set(existing.map((r) => (r as { url: string | null }).url));
   const novel = all.filter((n) => !existingSet.has(n.link)).slice(0, 12);
   if (!novel.length) return { inserted: 0, reason: "already_fresh" };
 
@@ -95,7 +95,8 @@ ${novel.map((n, i) => `${i}. [${n.theme}] ${n.title} (fonte: ${n.source})`).join
     published_at: n.pubDate ? new Date(n.pubDate).toISOString() : null,
   }));
 
-  const { error: insErr } = await supabase.from("news_items").insert(rows);
-  if (insErr) throw new Error(insErr.message);
+  await sql`
+    INSERT INTO app.news_items ${sql(rows, "user_id", "title", "source", "url", "summary", "theme", "urgency", "published_at")}
+  `;
   return { inserted: rows.length };
 }

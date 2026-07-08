@@ -1,38 +1,36 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
+import type { Sql } from "@/db/client.server";
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data, error } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden");
+async function isAdmin(sql: Sql, userId: string): Promise<boolean> {
+  const [row] = await sql`
+    SELECT 1 FROM app.user_roles
+    WHERE user_id = ${userId} AND role = 'admin'
+    LIMIT 1
+  `;
+  return Boolean(row);
 }
 
 export const amIAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (error) return false;
-    return Boolean(data);
+    try {
+      return await isAdmin(context.sql, context.userId);
+    } catch {
+      return false;
+    }
   });
 
 const PlanEnum = z.enum(["basico", "avancado", "enterprise"]);
 
 export const setMyPlan = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ plan: PlanEnum }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const { error } = await context.supabase
-      .from("profiles")
-      .update({ plan: data.plan })
-      .eq("id", context.userId);
-    if (error) throw new Error(error.message);
+    if (!(await isAdmin(context.sql, context.userId))) throw new Error("Forbidden");
+    await context.sql`
+      UPDATE app.profiles SET plan = ${data.plan} WHERE id = ${context.userId}
+    `;
     return { ok: true, plan: data.plan };
   });

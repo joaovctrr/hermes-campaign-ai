@@ -1,17 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Called every 3h by pg_cron. Authenticated via the project's anon key in
- * the `apikey` header (same pattern used by Supabase Data API). Runs the
- * radar refresh for every onboarded profile, then refreshes the dashboard
- * materialized view.
+ * Chamado periodicamente por um scheduler externo (cron do SO / tarefa agendada
+ * do Coolify). Autenticado por CRON_SECRET no header `x-api-key`. Roda o radar
+ * para cada profile onboarded e atualiza a materialized view do dashboard.
  */
 export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = request.headers.get("apikey") ?? request.headers.get("x-api-key");
-        if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+        const apiKey = request.headers.get("x-api-key") ?? request.headers.get("apikey");
+        if (!apiKey || apiKey !== process.env.CRON_SECRET) {
           return new Response(JSON.stringify({ error: "unauthorized" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
@@ -26,19 +25,10 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           });
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { sql } = await import("@/db/client.server");
         const { refreshRadarForUser } = await import("@/lib/radar-refresh.server");
 
-        const { data: profiles, error: pErr } = await supabaseAdmin
-          .from("profiles")
-          .select("id")
-          .eq("onboarded", true);
-        if (pErr) {
-          return new Response(JSON.stringify({ error: pErr.message }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const profiles = await sql`SELECT id FROM app.profiles WHERE onboarded = true`;
 
         const results: Array<{
           user_id: string;
@@ -46,9 +36,15 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           reason?: string;
           error?: string;
         }> = [];
+<<<<<<< Updated upstream
         for (const p of profiles ?? []) {
           try {
             const r = await refreshRadarForUser(supabaseAdmin, p.id, googleApiKey);
+=======
+        for (const p of profiles) {
+          try {
+            const r = await refreshRadarForUser(sql, p.id, lovableKey);
+>>>>>>> Stashed changes
             results.push({ user_id: p.id, ...r });
           } catch (e) {
             results.push({
@@ -60,7 +56,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
         }
 
         try {
+<<<<<<< Updated upstream
           await supabaseAdmin.rpc("refresh_dashboard_stats");
+=======
+          await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app.dashboard_stats`;
+>>>>>>> Stashed changes
         } catch {
           /* ignore */
         }

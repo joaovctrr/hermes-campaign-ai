@@ -10,7 +10,12 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+<<<<<<< Updated upstream
 import { supabase } from "@/integrations/supabase/client";
+=======
+import { reportLovableError } from "../lib/lovable-error-reporting";
+import { authClient } from "@/lib/auth-client";
+>>>>>>> Stashed changes
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -107,15 +112,15 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
 
+  // Invalida o router e as queries sempre que o usuário logado muda
+  // (login/logout/troca de conta) — equivalente ao onAuthStateChange do Supabase.
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [router, queryClient]);
+    router.invalidate();
+    if (userId) queryClient.invalidateQueries();
+  }, [userId, router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

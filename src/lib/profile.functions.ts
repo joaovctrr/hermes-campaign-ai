@@ -1,17 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 
 export const getMyProfile = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", context.userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data;
+    const [row] = await context.sql`
+      SELECT * FROM app.profiles WHERE id = ${context.userId}
+    `;
+    return row ?? null;
   });
 
 const HandleSchema = z
@@ -35,19 +32,22 @@ const UpdateSchema = z.object({
   tiktok_handle: HandleSchema,
   facebook_handle: HandleSchema,
   mention_keywords: z.array(z.string().min(1).max(80)).max(20).default([]),
-  monitored_networks: z.array(NetworkEnum).max(4).default(["instagram", "twitter", "tiktok", "facebook"]),
+  monitored_networks: z
+    .array(NetworkEnum)
+    .max(4)
+    .default(["instagram", "twitter", "tiktok", "facebook"]),
   cron_interval_hours: z.union([z.literal(6), z.literal(12), z.literal(24)]).default(6),
   onboarded: z.boolean().optional(),
 });
 
 export const updateMyProfile = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => UpdateSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("profiles")
-      .update({ ...data, onboarded: data.onboarded ?? true })
-      .eq("id", context.userId);
-    if (error) throw new Error(error.message);
+    const patch = { ...data, onboarded: data.onboarded ?? true };
+    // updated_at é atualizado pelo trigger app.profiles_touch.
+    await context.sql`
+      UPDATE app.profiles SET ${context.sql(patch)} WHERE id = ${context.userId}
+    `;
     return { ok: true };
   });

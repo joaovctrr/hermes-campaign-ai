@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 import { manualCooldownHours, formatCooldownRemaining } from "./plan-limits";
 
 export const refreshMySentiment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const apifyToken = process.env.APIFY_TOKEN;
     const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -12,20 +12,17 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
     if (!googleApiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY não configurado");
 
     // Plan-based cooldown
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
+    const [profile] = await context.sql`
+      SELECT plan FROM app.profiles WHERE id = ${context.userId}
+    `;
     const cooldown = manualCooldownHours(profile?.plan);
     if (cooldown > 0) {
-      const { data: last } = await context.supabase
-        .from("sentiment_snapshots")
-        .select("created_at")
-        .eq("user_id", context.userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [last] = await context.sql`
+        SELECT created_at FROM app.sentiment_snapshots
+        WHERE user_id = ${context.userId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
       if (last?.created_at) {
         const elapsed = Date.now() - new Date(last.created_at).getTime();
         const remaining = cooldown * 3600000 - elapsed;
@@ -38,34 +35,36 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
     }
 
     const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
+<<<<<<< Updated upstream
     return refreshSentimentForUser(context.supabase, context.userId, apifyToken, googleApiKey);
+=======
+    return refreshSentimentForUser(context.sql, context.userId, apifyToken, lovableKey);
+>>>>>>> Stashed changes
   });
 
 export const getLatestSnapshot = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("sentiment_snapshots")
-      .select("*")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data;
+    const [row] = await context.sql`
+      SELECT * FROM app.sentiment_snapshots
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    return row ?? null;
   });
 
 export const listSnapshotHistory = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("sentiment_snapshots")
-      .select("id, created_at, total, positivo, neutro, negativo")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = await context.sql`
+      SELECT id, created_at, total, positivo, neutro, negativo
+      FROM app.sentiment_snapshots
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 30
+    `;
+    return rows ?? [];
   });
 
 const ListInput = z.object({
@@ -75,41 +74,37 @@ const ListInput = z.object({
 });
 
 export const listMyMentions = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => ListInput.parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    let q = context.supabase
-      .from("social_mentions")
-      .select(
-        "id, network, author, content, url, sentiment, score, posted_at, collected_at, parent_post_id, parent_post_url, parent_post_caption, parent_post_thumbnail",
-      )
-      .eq("user_id", context.userId)
-      .order("collected_at", { ascending: false })
-      .limit(data.limit);
-    if (data.network) q = q.eq("network", data.network);
-    if (data.sentiment) q = q.eq("sentiment", data.sentiment);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    const { sql } = context;
+    const rows = await sql`
+      SELECT id, network, author, content, url, sentiment, score, posted_at, collected_at,
+             parent_post_id, parent_post_url, parent_post_caption, parent_post_thumbnail
+      FROM app.social_mentions
+      WHERE user_id = ${context.userId}
+        ${data.network ? sql`AND network = ${data.network}` : sql``}
+        ${data.sentiment ? sql`AND sentiment = ${data.sentiment}` : sql``}
+      ORDER BY collected_at DESC
+      LIMIT ${data.limit}
+    `;
     return rows ?? [];
   });
 
 export const getManualCooldownStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("plan")
-      .eq("id", context.userId)
-      .maybeSingle();
+    const [profile] = await context.sql`
+      SELECT plan FROM app.profiles WHERE id = ${context.userId}
+    `;
     const plan = profile?.plan ?? "basico";
     const cooldown = manualCooldownHours(plan);
-    const { data: last } = await context.supabase
-      .from("sentiment_snapshots")
-      .select("created_at")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [last] = await context.sql`
+      SELECT created_at FROM app.sentiment_snapshots
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
     const lastAt = last?.created_at ? new Date(last.created_at).getTime() : 0;
     const remaining =
       cooldown > 0 && lastAt ? Math.max(0, cooldown * 3600000 - (Date.now() - lastAt)) : 0;

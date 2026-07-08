@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 
 const SaveSchema = z.object({
   text: z.string().min(1).max(800),
@@ -18,35 +18,30 @@ async function hashRecommendation(text: string): Promise<string> {
 }
 
 export const saveInsightFeedback = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => SaveSchema.parse(d))
   .handler(async ({ data, context }) => {
     const hash = await hashRecommendation(data.text);
-    const { error } = await context.supabase
-      .from("insight_feedback")
-      .upsert(
-        {
-          user_id: context.userId,
-          recommendation_text: data.text.slice(0, 800),
-          recommendation_hash: hash,
-          context_window: data.window,
-          useful: data.useful,
-        },
-        { onConflict: "user_id,recommendation_hash" },
-      );
-    if (error) throw new Error(error.message);
+    await context.sql`
+      INSERT INTO app.insight_feedback (user_id, recommendation_text, recommendation_hash, context_window, useful)
+      VALUES (${context.userId}, ${data.text.slice(0, 800)}, ${hash}, ${data.window}, ${data.useful})
+      ON CONFLICT (user_id, recommendation_hash) DO UPDATE SET
+        recommendation_text = EXCLUDED.recommendation_text,
+        context_window = EXCLUDED.context_window,
+        useful = EXCLUDED.useful
+    `;
     return { ok: true, hash };
   });
 
 export const listMyFeedback = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("insight_feedback")
-      .select("recommendation_text, recommendation_hash, useful, created_at")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = await context.sql`
+      SELECT recommendation_text, recommendation_hash, useful, created_at
+      FROM app.insight_feedback
+      WHERE user_id = ${context.userId}
+      ORDER BY created_at DESC
+      LIMIT 200
+    `;
+    return rows ?? [];
   });

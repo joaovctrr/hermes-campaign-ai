@@ -1,6 +1,11 @@
 import { generateText } from "ai";
+<<<<<<< Updated upstream
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createGoogleAiProvider } from "./ai-gateway.server";
+=======
+import type { Sql } from "@/db/client.server";
+import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+>>>>>>> Stashed changes
 import {
   fetchInstagramMentions,
   fetchTwitterMentions,
@@ -17,11 +22,12 @@ type Classified = RawMention & { sentiment: "positivo" | "neutro" | "negativo"; 
  * a snapshot row. Returns aggregate counters for the caller.
  */
 export async function refreshSentimentForUser(
-  supabase: SupabaseClient,
+  sql: Sql,
   userId: string,
   apifyToken: string,
   googleApiKey: string,
 ): Promise<{ collected: number; inserted: number; snapshot_id?: string; reason?: string }> {
+<<<<<<< Updated upstream
   const { data: profile, error: pErr } = await supabase
     .from("profiles")
     .select(
@@ -30,6 +36,12 @@ export async function refreshSentimentForUser(
     .eq("id", userId)
     .maybeSingle();
   if (pErr) throw new Error(pErr.message);
+=======
+  const [profile] = await sql`
+    SELECT instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks
+    FROM app.profiles WHERE id = ${userId}
+  `;
+>>>>>>> Stashed changes
   if (!profile) return { collected: 0, inserted: 0, reason: "no_profile" };
 
   const nets: string[] = profile.monitored_networks ?? [
@@ -65,16 +77,15 @@ export async function refreshSentimentForUser(
 
   // Dedup against DB
   const ids = all.map((m) => m.external_id);
-  const { data: existing } = await supabase
-    .from("social_mentions")
-    .select("external_id")
-    .eq("user_id", userId)
-    .in("external_id", ids);
-  const existingSet = new Set((existing ?? []).map((r: { external_id: string }) => r.external_id));
+  const existing = await sql`
+    SELECT external_id FROM app.social_mentions
+    WHERE user_id = ${userId} AND external_id = ANY(${ids})
+  `;
+  const existingSet = new Set(existing.map((r) => (r as { external_id: string }).external_id));
   const novel = all.filter((m) => !existingSet.has(m.external_id)).slice(0, 80);
 
   if (!novel.length) {
-    await writeSnapshot(supabase, userId);
+    await writeSnapshot(sql, userId);
     return { collected: all.length, inserted: 0, reason: "already_fresh" };
   }
 
@@ -98,12 +109,28 @@ export async function refreshSentimentForUser(
     parent_post_thumbnail: m.parent_post_thumbnail,
   }));
 
-  const { error: insErr } = await supabase
-    .from("social_mentions")
-    .upsert(rows, { onConflict: "user_id,network,external_id", ignoreDuplicates: true });
-  if (insErr) throw new Error(insErr.message);
+  await sql`
+    INSERT INTO app.social_mentions ${sql(
+      rows,
+      "user_id",
+      "network",
+      "source_type",
+      "external_id",
+      "author",
+      "content",
+      "url",
+      "sentiment",
+      "score",
+      "posted_at",
+      "parent_post_id",
+      "parent_post_url",
+      "parent_post_caption",
+      "parent_post_thumbnail",
+    )}
+    ON CONFLICT (user_id, network, external_id) DO NOTHING
+  `;
 
-  const snap = await writeSnapshot(supabase, userId);
+  const snap = await writeSnapshot(sql, userId);
   return { collected: all.length, inserted: rows.length, snapshot_id: snap };
 }
 
@@ -145,16 +172,19 @@ ${items.map((m, i) => `${i}. [${m.network}] ${m.content.slice(0, 300)}`).join("\
   });
 }
 
+<<<<<<< Updated upstream
 async function writeSnapshot(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<string | undefined> {
+=======
+async function writeSnapshot(sql: Sql, userId: string): Promise<string | undefined> {
+>>>>>>> Stashed changes
   const windowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: rows } = await supabase
-    .from("social_mentions")
-    .select("network, sentiment")
-    .eq("user_id", userId)
-    .gte("collected_at", windowStart);
+  const rows = await sql`
+    SELECT network, sentiment FROM app.social_mentions
+    WHERE user_id = ${userId} AND collected_at >= ${windowStart}
+  `;
 
   const list = rows ?? [];
   const total = list.length;
@@ -169,24 +199,18 @@ async function writeSnapshot(
     else if (s === "negativo") n.neg++;
     else n.neu++;
   }
-  const { data, error } = await supabase
-    .from("sentiment_snapshots")
-    .insert({
-      user_id: userId,
-      window_start: windowStart,
-      window_end: new Date().toISOString(),
-      total,
-      positivo: counts.positivo,
-      neutro: counts.neutro,
-      negativo: counts.negativo,
-      networks,
-      top_topics: [],
-    })
-    .select("id")
-    .maybeSingle();
-  if (error) {
+  try {
+    const [inserted] = await sql`
+      INSERT INTO app.sentiment_snapshots
+        (user_id, window_start, window_end, total, positivo, neutro, negativo, networks, top_topics)
+      VALUES
+        (${userId}, ${windowStart}, ${new Date().toISOString()}, ${total},
+         ${counts.positivo}, ${counts.neutro}, ${counts.negativo}, ${sql.json(networks)}, ${sql.json([])})
+      RETURNING id
+    `;
+    return inserted?.id;
+  } catch (error) {
     console.error("[sentiment] snapshot insert failed", error);
     return undefined;
   }
-  return data?.id;
 }

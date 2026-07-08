@@ -1,8 +1,23 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
+<<<<<<< Updated upstream
 import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, ScrollText, Settings, LogOut } from "lucide-react";
 import logo from "@/assets/informa-agora-logo-transparent.png";
 import { supabase } from "@/integrations/supabase/client";
+=======
+import {
+  LayoutDashboard,
+  Newspaper,
+  Sparkles,
+  Library,
+  BarChart3,
+  ScrollText,
+  Settings,
+  LogOut,
+} from "lucide-react";
+import logo from "@/assets/informa-agora-logo-white.png.asset.json";
+import { authClient } from "@/lib/auth-client";
+>>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 
 const NAV = [
@@ -15,7 +30,12 @@ const NAV = [
   { to: "/settings", label: "Configurações", icon: Settings },
 ] as const;
 
-export function AppShell({ children, title, subtitle, actions }: {
+export function AppShell({
+  children,
+  title,
+  subtitle,
+  actions,
+}: {
   children: ReactNode;
   title: string;
   subtitle?: string;
@@ -25,7 +45,7 @@ export function AppShell({ children, title, subtitle, actions }: {
   const navigate = useNavigate();
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await authClient.signOut();
     navigate({ to: "/auth", replace: true });
   }
 
@@ -40,7 +60,8 @@ export function AppShell({ children, title, subtitle, actions }: {
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {NAV.map((item) => {
-            const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
+            const active =
+              pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}

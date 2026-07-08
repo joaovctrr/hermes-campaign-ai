@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 import { generateText } from "ai";
 import { createGoogleAiProvider } from "./ai-gateway.server";
 
@@ -15,50 +15,39 @@ function pct(part: number, total: number): number {
 }
 
 export const getMyInsights = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+    const { sql, userId } = context;
     const now = Date.now();
     const d1 = new Date(now - 24 * 3600 * 1000).toISOString();
     const d7 = new Date(now - 7 * 86400 * 1000).toISOString();
 
-    const [mentions1, mentions7, news7, lastSnap, feedback] = await Promise.all([
-      supabase
-        .from("social_mentions")
-        .select("sentiment, network, content")
-        .eq("user_id", userId)
-        .gte("collected_at", d1),
-      supabase
-        .from("social_mentions")
-        .select("sentiment, collected_at")
-        .eq("user_id", userId)
-        .gte("collected_at", d7),
-      supabase
-        .from("news_items")
-        .select("title, theme, urgency, summary, created_at")
-        .eq("user_id", userId)
-        .gte("created_at", d7)
-        .order("created_at", { ascending: false })
-        .limit(40),
-      supabase
-        .from("sentiment_snapshots")
-        .select("created_at, positivo, neutro, negativo, total")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("insight_feedback")
-        .select("recommendation_text, useful, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(30),
+    const [m1, m7, n7, lastSnapRows, fb] = await Promise.all([
+      sql`
+        SELECT sentiment, network, content FROM app.social_mentions
+        WHERE user_id = ${userId} AND collected_at >= ${d1}
+      `,
+      sql`
+        SELECT sentiment, collected_at FROM app.social_mentions
+        WHERE user_id = ${userId} AND collected_at >= ${d7}
+      `,
+      sql`
+        SELECT title, theme, urgency, summary, created_at FROM app.news_items
+        WHERE user_id = ${userId} AND created_at >= ${d7}
+        ORDER BY created_at DESC LIMIT 40
+      `,
+      sql`
+        SELECT created_at, positivo, neutro, negativo, total FROM app.sentiment_snapshots
+        WHERE user_id = ${userId}
+        ORDER BY created_at DESC LIMIT 1
+      `,
+      sql`
+        SELECT recommendation_text, useful, created_at FROM app.insight_feedback
+        WHERE user_id = ${userId}
+        ORDER BY created_at DESC LIMIT 30
+      `,
     ]);
-
-    const m1 = mentions1.data ?? [];
-    const m7 = mentions7.data ?? [];
-    const n7 = news7.data ?? [];
-    const fb = feedback.data ?? [];
+    const lastSnap = lastSnapRows[0] ?? null;
 
     const bucket24 = emptyBucket();
     for (const r of m1) {
@@ -170,38 +159,17 @@ ${liked ? `\nRecomendações que o usuário marcou como ÚTEIS (siga este estilo
     // Persist a history row (one per window) — best-effort, non-blocking on failure
     const generatedAt = new Date().toISOString();
     if (bucket24.total > 0 || bucket7.total > 0) {
-      const recsJson = recommendations;
-      const themesJson = topThemes;
-      const rows = [
-        {
-          user_id: userId,
-          window_kind: "24h",
-          generated_at: generatedAt,
-          sentiment_trend: trend,
-          positivo_pct: pct(bucket24.positivo, bucket24.total),
-          neutro_pct: pct(bucket24.neutro, bucket24.total),
-          negativo_pct: pct(bucket24.negativo, bucket24.total),
-          total_mentions: bucket24.total,
-          top_themes: themesJson,
-          recommendations: recsJson,
-          refresh_source: "manual",
-        },
-        {
-          user_id: userId,
-          window_kind: "7d",
-          generated_at: generatedAt,
-          sentiment_trend: trend,
-          positivo_pct: pct(bucket7.positivo, bucket7.total),
-          neutro_pct: pct(bucket7.neutro, bucket7.total),
-          negativo_pct: pct(bucket7.negativo, bucket7.total),
-          total_mentions: bucket7.total,
-          top_themes: themesJson,
-          recommendations: recsJson,
-          refresh_source: "manual",
-        },
-      ];
-      const { error: histErr } = await supabase.from("insight_history").insert(rows);
-      if (histErr) console.error("[insights] history insert failed", histErr);
+      try {
+        await sql`
+          INSERT INTO app.insight_history
+            (user_id, window_kind, generated_at, sentiment_trend, positivo_pct, neutro_pct, negativo_pct, total_mentions, top_themes, recommendations, refresh_source)
+          VALUES
+            (${userId}, '24h', ${generatedAt}, ${trend}, ${pct(bucket24.positivo, bucket24.total)}, ${pct(bucket24.neutro, bucket24.total)}, ${pct(bucket24.negativo, bucket24.total)}, ${bucket24.total}, ${sql.json(topThemes)}, ${sql.json(recommendations)}, 'manual'),
+            (${userId}, '7d', ${generatedAt}, ${trend}, ${pct(bucket7.positivo, bucket7.total)}, ${pct(bucket7.neutro, bucket7.total)}, ${pct(bucket7.negativo, bucket7.total)}, ${bucket7.total}, ${sql.json(topThemes)}, ${sql.json(recommendations)}, 'manual')
+        `;
+      } catch (histErr) {
+        console.error("[insights] history insert failed", histErr);
+      }
     }
 
     return {
@@ -211,7 +179,7 @@ ${liked ? `\nRecomendações que o usuário marcou como ÚTEIS (siga este estilo
       trend,
       topThemes,
       recommendations,
-      lastSnapshotAt: lastSnap.data?.created_at ?? null,
+      lastSnapshotAt: lastSnap?.created_at ?? null,
       lastRefreshAt: generatedAt,
       newsCount7d: n7.length,
     };
@@ -223,20 +191,17 @@ const HistorySchema = z.object({
 });
 
 export const getInsightHistory = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => HistorySchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const since = new Date(Date.now() - data.days * 86400000).toISOString();
-    const { data: rows, error } = await context.supabase
-      .from("insight_history")
-      .select(
-        "id, window_kind, generated_at, sentiment_trend, positivo_pct, neutro_pct, negativo_pct, total_mentions, top_themes, recommendations, refresh_source",
-      )
-      .eq("user_id", context.userId)
-      .eq("window_kind", data.window)
-      .gte("generated_at", since)
-      .order("generated_at", { ascending: false })
-      .limit(200);
-    if (error) throw new Error(error.message);
+    const rows = await context.sql`
+      SELECT id, window_kind, generated_at, sentiment_trend, positivo_pct, neutro_pct,
+             negativo_pct, total_mentions, top_themes, recommendations, refresh_source
+      FROM app.insight_history
+      WHERE user_id = ${context.userId} AND window_kind = ${data.window} AND generated_at >= ${since}
+      ORDER BY generated_at DESC
+      LIMIT 200
+    `;
     return rows ?? [];
   });

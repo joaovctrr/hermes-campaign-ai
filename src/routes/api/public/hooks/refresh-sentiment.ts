@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Called by pg_cron every 6h. Authenticated via Supabase publishable key.
- * Runs Apify-backed sentiment refresh for each onboarded profile that has
- * at least one social handle and is past its plan/user-defined interval.
- * Writes structured run + per-user logs so users can audit the cron in the UI.
+ * Chamado por um scheduler externo (cron do SO / tarefa agendada do Coolify).
+ * Autenticado por CRON_SECRET no header `x-api-key`. Roda o refresh de sentimento
+ * (Apify) para cada profile onboarded com pelo menos um handle e que já passou do
+ * intervalo do plano/usuário. Grava logs de execução e por usuário.
  */
 export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = request.headers.get("apikey") ?? request.headers.get("x-api-key");
-        if (!apiKey || apiKey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+        const apiKey = request.headers.get("x-api-key") ?? request.headers.get("apikey");
+        if (!apiKey || apiKey !== process.env.CRON_SECRET) {
           return new Response(JSON.stringify({ error: "unauthorized" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
@@ -26,17 +26,15 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           });
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { sql } = await import("@/db/client.server");
         const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
 
         const HOOK = "refresh-sentiment";
 
         // Open a run row
-        const { data: runRow } = await supabaseAdmin
-          .from("cron_run_logs")
-          .insert({ hook: HOOK, status: "running" })
-          .select("id")
-          .maybeSingle();
+        const [runRow] = await sql`
+          INSERT INTO app.cron_run_logs (hook, status) VALUES (${HOOK}, 'running') RETURNING id
+        `;
         const runId = runRow?.id ?? null;
 
         async function logUser(
@@ -49,27 +47,23 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           err: string | null,
         ) {
           if (!runId) return;
-          await supabaseAdmin.from("cron_user_logs").insert({
-            run_id: runId,
-            user_id: userId,
-            hook: HOOK,
-            action,
-            reason,
-            interval_hours: interval,
-            plan,
-            inserted_count: inserted,
-            error: err,
-          });
+          await sql`
+            INSERT INTO app.cron_user_logs (run_id, user_id, hook, action, reason, interval_hours, plan, inserted_count, error)
+            VALUES (${runId}, ${userId}, ${HOOK}, ${action}, ${reason}, ${interval}, ${plan}, ${inserted}, ${err})
+          `;
         }
 
-        const { data: profiles, error } = await supabaseAdmin
-          .from("profiles")
-          .select(
-            "id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks, cron_interval_hours, plan",
-          )
-          .eq("onboarded", true);
-        if (error) {
+        let profiles: Array<Record<string, any>>;
+        try {
+          profiles = await sql`
+            SELECT id, instagram_handle, twitter_handle, tiktok_handle, facebook_handle,
+                   mention_keywords, monitored_networks, cron_interval_hours, plan
+            FROM app.profiles WHERE onboarded = true
+          `;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
           if (runId) {
+<<<<<<< Updated upstream
             await supabaseAdmin
               .from("cron_run_logs")
               .update({
@@ -78,8 +72,15 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
                 finished_at: new Date().toISOString(),
               })
               .eq("id", runId);
+=======
+            await sql`
+              UPDATE app.cron_run_logs
+              SET status = 'error', error = ${msg}, finished_at = now()
+              WHERE id = ${runId}
+            `;
+>>>>>>> Stashed changes
           }
-          return new Response(JSON.stringify({ error: error.message }), {
+          return new Response(JSON.stringify({ error: msg }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });
@@ -88,12 +89,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         const planMin = (plan: string | null) =>
           plan === "enterprise" ? 6 : plan === "avancado" ? 12 : 24;
 
-        const all = profiles ?? [];
         let processed = 0;
         let skipped = 0;
         const results: Array<Record<string, unknown>> = [];
 
-        for (const p of all) {
+        for (const p of profiles) {
           const nets: string[] = p.monitored_networks ?? [];
           const hasSource =
             (nets.includes("instagram") && p.instagram_handle) ||
@@ -109,13 +109,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
             continue;
           }
 
-          const { data: last } = await supabaseAdmin
-            .from("sentiment_snapshots")
-            .select("created_at")
-            .eq("user_id", p.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          const [last] = await sql`
+            SELECT created_at FROM app.sentiment_snapshots
+            WHERE user_id = ${p.id}
+            ORDER BY created_at DESC LIMIT 1
+          `;
           const lastMs = last?.created_at ? new Date(last.created_at).getTime() : 0;
           const dueMs = Date.now() - interval * 3600 * 1000 + 5 * 60 * 1000;
 
@@ -128,7 +126,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           }
 
           try {
+<<<<<<< Updated upstream
             const r = await refreshSentimentForUser(supabaseAdmin, p.id, apifyToken, googleApiKey);
+=======
+            const r = await refreshSentimentForUser(sql, p.id, apifyToken, lovableKey);
+>>>>>>> Stashed changes
             processed++;
             await logUser(p.id, "processed", r.reason ?? null, interval, p.plan, r.inserted, null);
             results.push({ user_id: p.id, ...r });
@@ -140,23 +142,23 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         }
 
         if (runId) {
-          await supabaseAdmin
-            .from("cron_run_logs")
-            .update({
-              status: "ok",
-              finished_at: new Date().toISOString(),
-              users_total: all.length,
-              users_processed: processed,
-              users_skipped: skipped,
-            })
-            .eq("id", runId);
+          await sql`
+            UPDATE app.cron_run_logs
+            SET status = 'ok', finished_at = now(),
+                users_total = ${profiles.length}, users_processed = ${processed}, users_skipped = ${skipped}
+            WHERE id = ${runId}
+          `;
         }
 
         return new Response(
           JSON.stringify({
             ok: true,
             run_id: runId,
+<<<<<<< Updated upstream
             users_total: all.length,
+=======
+            users_total: profiles.length,
+>>>>>>> Stashed changes
             users_processed: processed,
             users_skipped: skipped,
             results,

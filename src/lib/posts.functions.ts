@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "@/lib/require-auth.server";
 
 const FormatSchema = z.enum(["instagram", "tiktok", "twitter"]);
 
@@ -20,12 +20,13 @@ const GenerateInput = z.object({
 });
 
 export const generatePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => GenerateInput.parse(d))
   .handler(async ({ data, context }) => {
     const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
+<<<<<<< Updated upstream
     const [{ data: profile }, { data: news }] = await Promise.all([
       context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle(),
       context.supabase
@@ -34,6 +35,11 @@ export const generatePost = createServerFn({ method: "POST" })
         .eq("id", data.news_item_id)
         .eq("user_id", context.userId)
         .maybeSingle(),
+=======
+    const [[profile], [news]] = await Promise.all([
+      context.sql`SELECT * FROM app.profiles WHERE id = ${context.userId}`,
+      context.sql`SELECT * FROM app.news_items WHERE id = ${data.news_item_id} AND user_id = ${context.userId}`,
+>>>>>>> Stashed changes
     ]);
     if (!news) throw new Error("Notícia não encontrada.");
 
@@ -68,56 +74,52 @@ Produza o conteúdo final pronto para a equipe revisar e publicar.`;
       prompt: userPrompt,
     });
 
-    const { data: inserted, error: insErr } = await context.supabase
-      .from("generated_posts")
-      .insert({
-        user_id: context.userId,
-        news_item_id: news.id,
-        format: data.format,
-        content: text,
-      })
-      .select("*")
-      .single();
-    if (insErr) throw new Error(insErr.message);
+    const [inserted] = await context.sql`
+      INSERT INTO app.generated_posts (user_id, news_item_id, format, content)
+      VALUES (${context.userId}, ${news.id}, ${data.format}, ${text})
+      RETURNING *
+    `;
     return inserted;
   });
 
 export const listPostsForNews = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ news_item_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
-      .from("generated_posts")
-      .select("*")
-      .eq("user_id", context.userId)
-      .eq("news_item_id", data.news_item_id)
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    const rows = await context.sql`
+      SELECT * FROM app.generated_posts
+      WHERE user_id = ${context.userId} AND news_item_id = ${data.news_item_id}
+      ORDER BY created_at DESC
+    `;
     return rows ?? [];
   });
 
 export const listMyPosts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("generated_posts")
-      .select("id, content, format, news_item_id, created_at, news_items(title, theme, urgency)")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    // Mantém o shape aninhado `news_items` que a UI consome (antes vinha do PostgREST).
+    const rows = await context.sql`
+      SELECT
+        p.id, p.content, p.format, p.news_item_id, p.created_at,
+        CASE WHEN n.id IS NULL THEN NULL
+             ELSE json_build_object('title', n.title, 'theme', n.theme, 'urgency', n.urgency)
+        END AS news_items
+      FROM app.generated_posts p
+      LEFT JOIN app.news_items n ON n.id = p.news_item_id
+      WHERE p.user_id = ${context.userId}
+      ORDER BY p.created_at DESC
+      LIMIT 200
+    `;
+    return rows ?? [];
   });
 
 export const deletePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("generated_posts")
-      .delete()
-      .eq("id", data.id)
-      .eq("user_id", context.userId);
-    if (error) throw new Error(error.message);
+    await context.sql`
+      DELETE FROM app.generated_posts
+      WHERE id = ${data.id} AND user_id = ${context.userId}
+    `;
     return { ok: true };
   });
