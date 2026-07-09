@@ -1,10 +1,6 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-<<<<<<< Updated upstream
-import { supabase } from "@/integrations/supabase/client";
-=======
 import { authClient } from "@/lib/auth-client";
->>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,15 +62,9 @@ function AuthPage() {
   }
 
   async function handleGoogle() {
-<<<<<<< Updated upstream
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + "/auth" },
-=======
     const { error } = await authClient.signIn.social({
       provider: "google",
       callbackURL: window.location.origin + "/dashboard",
->>>>>>> Stashed changes
     });
     if (error) toast.error(error.message ?? "Falha no login com Google");
   }
@@ -83,7 +73,11 @@ function AuthPage() {
     <div className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-12">
         <a href="/" className="flex items-center gap-2">
-          <img src={logo} alt="Informa Ágora" className="h-10 w-auto object-contain brightness-0 invert" />
+          <img
+            src={logo}
+            alt="Informa Ágora"
+            className="h-10 w-auto object-contain brightness-0 invert"
+          />
           <span className="font-serif text-xl">Informa Ágora</span>
         </a>
         <div>

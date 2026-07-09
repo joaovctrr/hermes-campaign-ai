@@ -36,15 +36,9 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
           reason?: string;
           error?: string;
         }> = [];
-<<<<<<< Updated upstream
-        for (const p of profiles ?? []) {
-          try {
-            const r = await refreshRadarForUser(supabaseAdmin, p.id, googleApiKey);
-=======
         for (const p of profiles) {
           try {
-            const r = await refreshRadarForUser(sql, p.id, lovableKey);
->>>>>>> Stashed changes
+            const r = await refreshRadarForUser(sql, p.id, googleApiKey);
             results.push({ user_id: p.id, ...r });
           } catch (e) {
             results.push({
@@ -56,11 +50,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-radar")({
         }
 
         try {
-<<<<<<< Updated upstream
-          await supabaseAdmin.rpc("refresh_dashboard_stats");
-=======
           await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY app.dashboard_stats`;
->>>>>>> Stashed changes
         } catch {
           /* ignore */
         }

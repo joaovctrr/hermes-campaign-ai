@@ -1,11 +1,6 @@
 import { generateText } from "ai";
-<<<<<<< Updated upstream
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createGoogleAiProvider } from "./ai-gateway.server";
-=======
 import type { Sql } from "@/db/client.server";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
->>>>>>> Stashed changes
+import { createGoogleAiProvider } from "./ai-gateway.server";
 import {
   fetchInstagramMentions,
   fetchTwitterMentions,
@@ -27,21 +22,10 @@ export async function refreshSentimentForUser(
   apifyToken: string,
   googleApiKey: string,
 ): Promise<{ collected: number; inserted: number; snapshot_id?: string; reason?: string }> {
-<<<<<<< Updated upstream
-  const { data: profile, error: pErr } = await supabase
-    .from("profiles")
-    .select(
-      "instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks",
-    )
-    .eq("id", userId)
-    .maybeSingle();
-  if (pErr) throw new Error(pErr.message);
-=======
   const [profile] = await sql`
     SELECT instagram_handle, twitter_handle, tiktok_handle, facebook_handle, mention_keywords, monitored_networks
     FROM app.profiles WHERE id = ${userId}
   `;
->>>>>>> Stashed changes
   if (!profile) return { collected: 0, inserted: 0, reason: "no_profile" };
 
   const nets: string[] = profile.monitored_networks ?? [
@@ -172,14 +156,7 @@ ${items.map((m, i) => `${i}. [${m.network}] ${m.content.slice(0, 300)}`).join("\
   });
 }
 
-<<<<<<< Updated upstream
-async function writeSnapshot(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<string | undefined> {
-=======
 async function writeSnapshot(sql: Sql, userId: string): Promise<string | undefined> {
->>>>>>> Stashed changes
   const windowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const rows = await sql`
     SELECT network, sentiment FROM app.social_mentions

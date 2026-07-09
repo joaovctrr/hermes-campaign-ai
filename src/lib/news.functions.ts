@@ -18,19 +18,6 @@ export const listMyNews = createServerFn({ method: "GET" })
 export const getMyDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-<<<<<<< Updated upstream
-    const { data, error } = await context.supabase.rpc("get_my_dashboard_stats");
-    if (error) throw new Error(error.message);
-    const row = (
-      data as Array<{
-        total: number;
-        last_24h: number;
-        critical_24h: number;
-        last_news_at: string | null;
-      }> | null
-    )?.[0];
-    return row ?? { total: 0, last_24h: 0, critical_24h: 0, last_news_at: null };
-=======
     const [row] = await context.sql`
       SELECT total, last_24h, critical_24h, last_news_at
       FROM app.dashboard_stats
@@ -46,7 +33,6 @@ export const getMyDashboardStats = createServerFn({ method: "GET" })
         last_news_at: null,
       }
     );
->>>>>>> Stashed changes
   });
 
 export const refreshRadar = createServerFn({ method: "POST" })

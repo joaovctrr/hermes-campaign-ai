@@ -12,17 +12,17 @@ ASAAS Payment Bridge (mesmo VPS).
 ## 1. Role do app no Postgres
 Crie um usuário dedicado e o schema (o schema `app` também é criado pela migration):
 ```sql
-CREATE ROLE hermes_app LOGIN PASSWORD 'TROQUE';
-GRANT CONNECT ON DATABASE db_agora TO hermes_app;
+CREATE ROLE agora_app LOGIN PASSWORD 'TROQUE';
+GRANT CONNECT ON DATABASE db_agora TO agora_app;
 -- após aplicar as migrations:
-GRANT USAGE ON SCHEMA app TO hermes_app;
-GRANT ALL ON ALL TABLES IN SCHEMA app TO hermes_app;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO hermes_app;
+GRANT USAGE ON SCHEMA app TO agora_app;
+GRANT ALL ON ALL TABLES IN SCHEMA app TO agora_app;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO agora_app;
 -- better-auth cria tabelas em public: garanta acesso
-GRANT USAGE ON SCHEMA public TO hermes_app;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO hermes_app;
+GRANT USAGE ON SCHEMA public TO agora_app;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO agora_app;
 ```
-`DATABASE_URL=postgres://hermes_app:TROQUE@100.83.44.73:15432/db_agora`
+`DATABASE_URL=postgres://agora_app:TROQUE@100.83.44.73:15432/db_agora`
 
 ## 2. Tabelas do better-auth (public."user"/"session"/"account"/"verification")
 Rode ANTES da migration do app (a FK do schema app referencia `public."user"`):
@@ -85,7 +85,7 @@ Ajuste colunas se o CSV divergir (ex.: `profiles` ganhou defaults). Rode numa ja
 - Porta exposta: **3000**. Domínio + TLS (Let's Encrypt). Healthcheck em `/`.
 - **Environment variables** (runtime): todas do `.env.example`
   (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_*`, `ASAAS_*`,
-  `CRON_SECRET`, `LOVABLE_API_KEY`, `APIFY_TOKEN`, `ADMIN_EMAILS`).
+  `CRON_SECRET`, `GOOGLE_GENERATIVE_AI_API_KEY`, `APIFY_TOKEN`, `ADMIN_EMAILS`).
 - **Rede**: garanta que o container alcança o `db_agora` (Tailscale no host/container
   ou rede interna) e a bridge ASAAS. `BETTER_AUTH_URL` = domínio público https.
 

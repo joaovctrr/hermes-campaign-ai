@@ -26,20 +26,9 @@ export const generatePost = createServerFn({ method: "POST" })
     const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!key) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY ausente");
 
-<<<<<<< Updated upstream
-    const [{ data: profile }, { data: news }] = await Promise.all([
-      context.supabase.from("profiles").select("*").eq("id", context.userId).maybeSingle(),
-      context.supabase
-        .from("news_items")
-        .select("*")
-        .eq("id", data.news_item_id)
-        .eq("user_id", context.userId)
-        .maybeSingle(),
-=======
     const [[profile], [news]] = await Promise.all([
       context.sql`SELECT * FROM app.profiles WHERE id = ${context.userId}`,
       context.sql`SELECT * FROM app.news_items WHERE id = ${data.news_item_id} AND user_id = ${context.userId}`,
->>>>>>> Stashed changes
     ]);
     if (!news) throw new Error("Notícia não encontrada.");
 

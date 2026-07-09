@@ -35,11 +35,7 @@ export const refreshMySentiment = createServerFn({ method: "POST" })
     }
 
     const { refreshSentimentForUser } = await import("@/lib/sentiment-refresh.server");
-<<<<<<< Updated upstream
-    return refreshSentimentForUser(context.supabase, context.userId, apifyToken, googleApiKey);
-=======
-    return refreshSentimentForUser(context.sql, context.userId, apifyToken, lovableKey);
->>>>>>> Stashed changes
+    return refreshSentimentForUser(context.sql, context.userId, apifyToken, googleApiKey);
   });
 
 export const getLatestSnapshot = createServerFn({ method: "GET" })

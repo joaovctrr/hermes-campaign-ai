@@ -1,10 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-<<<<<<< Updated upstream
-import { LayoutDashboard, Newspaper, Sparkles, Library, BarChart3, ScrollText, Settings, LogOut } from "lucide-react";
-import logo from "@/assets/informa-agora-logo-transparent.png";
-import { supabase } from "@/integrations/supabase/client";
-=======
 import {
   LayoutDashboard,
   Newspaper,
@@ -15,9 +10,8 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import logo from "@/assets/informa-agora-logo-white.png.asset.json";
+import logo from "@/assets/informa-agora-logo-transparent.png";
 import { authClient } from "@/lib/auth-client";
->>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 
 const NAV = [
@@ -54,7 +48,11 @@ export function AppShell({
       <aside className="w-64 shrink-0 bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="p-6 border-b border-sidebar-border/40">
           <Link to="/dashboard" className="flex items-center gap-2">
-            <img src={logo} alt="Informa Ágora" className="h-11 w-auto object-contain brightness-0 invert" />
+            <img
+              src={logo}
+              alt="Informa Ágora"
+              className="h-11 w-auto object-contain brightness-0 invert"
+            />
             <span className="font-serif text-xl">Informa Ágora</span>
           </Link>
         </div>

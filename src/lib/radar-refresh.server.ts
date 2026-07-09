@@ -1,11 +1,6 @@
 import { generateText } from "ai";
-<<<<<<< Updated upstream
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createGoogleAiProvider } from "./ai-gateway.server";
-=======
 import type { Sql } from "@/db/client.server";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
->>>>>>> Stashed changes
+import { createGoogleAiProvider } from "./ai-gateway.server";
 
 type Raw = { title: string; link: string; source: string; pubDate?: string; theme: string };
 

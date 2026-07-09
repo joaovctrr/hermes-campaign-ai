@@ -63,22 +63,11 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (runId) {
-<<<<<<< Updated upstream
-            await supabaseAdmin
-              .from("cron_run_logs")
-              .update({
-                status: "error",
-                error: error.message,
-                finished_at: new Date().toISOString(),
-              })
-              .eq("id", runId);
-=======
             await sql`
               UPDATE app.cron_run_logs
               SET status = 'error', error = ${msg}, finished_at = now()
               WHERE id = ${runId}
             `;
->>>>>>> Stashed changes
           }
           return new Response(JSON.stringify({ error: msg }), {
             status: 500,
@@ -126,11 +115,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           }
 
           try {
-<<<<<<< Updated upstream
-            const r = await refreshSentimentForUser(supabaseAdmin, p.id, apifyToken, googleApiKey);
-=======
-            const r = await refreshSentimentForUser(sql, p.id, apifyToken, lovableKey);
->>>>>>> Stashed changes
+            const r = await refreshSentimentForUser(sql, p.id, apifyToken, googleApiKey);
             processed++;
             await logUser(p.id, "processed", r.reason ?? null, interval, p.plan, r.inserted, null);
             results.push({ user_id: p.id, ...r });
@@ -154,11 +139,7 @@ export const Route = createFileRoute("/api/public/hooks/refresh-sentiment")({
           JSON.stringify({
             ok: true,
             run_id: runId,
-<<<<<<< Updated upstream
-            users_total: all.length,
-=======
             users_total: profiles.length,
->>>>>>> Stashed changes
             users_processed: processed,
             users_skipped: skipped,
             results,

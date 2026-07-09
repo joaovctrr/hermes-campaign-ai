@@ -10,12 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-<<<<<<< Updated upstream
-import { supabase } from "@/integrations/supabase/client";
-=======
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { authClient } from "@/lib/auth-client";
->>>>>>> Stashed changes
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
